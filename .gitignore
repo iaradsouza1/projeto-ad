@@ -11,4 +11,6 @@ analysis/*_cache
 analysis/site_libs
 data/dados_plataforma/*
 docs/figure/*png
-output/*
+output/tabelas/*
+output/figuras/*
+
