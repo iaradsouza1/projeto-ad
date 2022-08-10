@@ -1,0 +1,393 @@
+---
+title: "1_analise_biomecanica2"
+author: "iaradsouza1"
+date: "2022-07-30"
+output: workflowr::wflow_html
+editor_options:
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = F, warning = F, fig.width = 7, fig.height = 5)
+
+library(tidyverse)
+library(gridExtra)
+theme_set(theme_bw())
+
+if(!dir.exists("output/figuras/biomecanica/")) {
+  dir.create("output/figuras/biomecanica/",recursive = T)
+}
+
+
+```
+
+# Análise das medidas de biomecânica
+
+O desenho do estudo faz a separação entre os grupos (Intervenção e Controle) e os momentos de coleta dos dados (Pré-Intervenção e Pós-Intervenção). 
+
+Nesta análise, utilizaremos a análise de variância multivariada (MANOVA) para as quatro condições testadas: pés juntos, semitandem, tandem e posição estática (pés separados).
+
+Verificar a eficácia do tratamento utilizado sobre as variáveis de biomecânica consideradas significa verificar a significância estatística da interação entre grupos e momentos da coleta de dados. Considerar a significância estatística como $\alpha = 0,05$.
+
+```{r}
+# Carregar os dados preprocessados
+load("output/biomecanica_processado.RData")
+```
+
+```{r}
+# Funções úteis
+
+# Função para obter a média das medidas de cada paciente
+resumo_f <- function(momento, meta, variavel, m) {
+    
+  momento %>% 
+    group_by(id, trat) %>% 
+    summarise("media_{variavel}" := mean(.data[[variavel]], na.rm = T)) %>% 
+    ungroup() %>% 
+    inner_join(meta %>% dplyr::select(id, grupo) %>% ungroup(), by = "id") %>% 
+    unique() %>% 
+    mutate(momento = m)->  df_resumo 
+    
+    return(df_resumo)
+    
+}
+
+obter_medias <- function(momento1, momento2, meta_m1, meta_m2, variavel) {
+  
+  # Obter as médias de cada medição M1 (tandem, semitandem, juntos, separados)
+  df_medida_m1 <- resumo_f(momento1, meta_m1, variavel, m = "Pré")
+  
+  # Obter as médias de cada medição M2 (tandem, semitandem, juntos, separados)
+  df_medida_m2 <- resumo_f(momento2, meta_m2, variavel, m = "Pós")
+  
+  df_medida <- bind_rows(df_medida_m1, df_medida_m2) 
+  
+  return(df_medida)
+  
+}
+
+# Erro padrão
+se <- function(x) sqrt(var(x[!is.na(x)]) / length(x[!is.na(x)]))
+```
+
+# Área do centro de pressão (CoP)
+```{r}
+# Obter medidas das médias
+df_area <- obter_medias(m1, m2, meta_m1, meta_m2, "area_var")
+
+# Formato longo para o teste da MANOVA
+df_area_w <- df_area %>%
+  pivot_wider(names_from = trat, values_from = "media_area_var")
+
+# Modelo
+modelo <- manova(
+  cbind(
+    log(juntos),
+    log(semitandem), 
+    log(separados), 
+    log(tandem)
+  ) ~ grupo*momento, data = df_area_w)
+
+summary(modelo, test = "Wilks")
+```
+
+## Comparações
+
+```{r, areavar, fig.cap="\\label{fig:areavar}Variação da área do CoP. Cada ponto indica a média e as retas indicam o erro padrão."}
+df_plot <- df_area %>% 
+  group_by(momento, grupo, trat) %>% 
+  summarise(media = mean(media_area_var, na.rm = T), desvio = se(media_area_var)) %>% 
+  ungroup() %>% 
+  mutate(momento = factor(momento, levels = c("Pré", "Pós")))
+
+ggplot(df_plot) + 
+  geom_point(aes(x = trat, y = media, col = momento), 
+             position = position_dodge(width = 0.5)) +
+  geom_errorbar(aes(x = trat, ymin = media-desvio, ymax = media+desvio, col = momento), 
+                position = position_dodge(width = 0.5), width = 0.2) + 
+  scale_x_discrete(limits = c("juntos", "semitandem", "tandem", "separados"), 
+                   labels = c("Pés unidos", "Semitandem", "Tandem", "Pos. Estática")) + 
+  facet_wrap(~grupo) +
+  labs(x = "", y = "Área do CoP (mm²)", col = "") + 
+  theme_bw() + 
+  theme(legend.position = "bottom")
+
+ggsave("output/figuras/biomecanica/area_cop.png", width = 7, height = 4, dpi = 300)
+ggsave("output/figuras/biomecanica/area_cop.svg", width = 7, height = 4, dpi = 300)
+```
+
+# Deslocamento da oscilação total (cm)
+```{r}
+# Obter medidas das médias
+df_disp <- obter_medias(m1, m2, meta_m1, meta_m2, "disp")
+
+# Formato longo para o teste da MANOVA
+df_disp_w <- df_disp %>%
+  pivot_wider(names_from = trat, values_from = "media_disp")
+
+# Modelo
+modelo <- manova(
+  cbind(
+    log(juntos),
+    log(semitandem), 
+    log(separados), 
+    log(tandem)
+  ) ~ grupo*momento, data = df_disp_w)
+
+summary(modelo, test = "Wilks")
+```
+
+## Comparações
+
+```{r, disp, fig.cap="\\label{fig:disp}Deslocamento da ocilação total. Cada ponto indica a média e as retas indicam o erro padrão."}
+df_plot <- df_disp %>% 
+  group_by(momento, grupo, trat) %>% 
+  summarise(media = mean(media_disp, na.rm = T), desvio = se(media_disp)) %>% 
+  ungroup() %>% 
+  mutate(momento = factor(momento, levels = c("Pré", "Pós")))
+
+ggplot(df_plot) + 
+  geom_point(aes(x = trat, y = media, col = momento), 
+             position = position_dodge(width = 0.5)) +
+  geom_errorbar(aes(x = trat, ymin = media-desvio, ymax = media+desvio, col = momento), 
+                position = position_dodge(width = 0.5), width = 0.2) + 
+  scale_x_discrete(limits = c("juntos", "semitandem", "tandem", "separados"), 
+                   labels = c("Pés unidos", "Semitandem", "Tandem", "Pos. Estática")) + 
+  facet_wrap(~grupo) +
+  labs(x = "", y = "Deslocamento (cm)", col = "") + 
+  theme_bw() +
+  theme(legend.position = "bottom")
+
+ggsave("output/figuras/biomecanica/deslocamento.png", width = 7, height = 4, dpi = 300)
+ggsave("output/figuras/biomecanica/deslocamento.svg", width = 7, height = 4, dpi = 300)
+```
+
+
+# Amplitude medial-lateral (cm)
+```{r}
+# Obter medidas das médias
+df_ampl_ml <- obter_medias(m1, m2, meta_m1, meta_m2, "ampl_ml")
+
+# Formato longo para o teste da MANOVA
+df_ampl_ml_w <- df_ampl_ml %>%
+  pivot_wider(names_from = trat, values_from = "media_ampl_ml")
+
+# Modelo
+modelo <- manova(
+  cbind(
+    log(juntos),
+    log(semitandem), 
+    log(separados), 
+    log(tandem)
+  ) ~ grupo*momento, data = df_ampl_ml_w)
+
+summary(modelo, test = "Wilks")
+```
+
+## Comparações
+
+```{r, ampl_ml, fig.cap="\\label{fig:ampl_ml}Amplitude medial-lateral (cm). Cada ponto indica a média e as retas indicam o erro padrão."}
+df_plot <- df_ampl_ml %>% 
+  group_by(momento, grupo, trat) %>% 
+  summarise(media = mean(media_ampl_ml, na.rm = T), desvio = se(media_ampl_ml)) %>% 
+  ungroup() %>% 
+  mutate(momento = factor(momento, levels = c("Pré", "Pós")))
+
+ggplot(df_plot) + 
+  geom_point(aes(x = trat, y = media, col = momento), 
+             position = position_dodge(width = 0.5)) +
+  geom_errorbar(aes(x = trat, ymin = media-desvio, ymax = media+desvio, col = momento), 
+                position = position_dodge(width = 0.5), width = 0.2) + 
+  scale_x_discrete(limits = c("juntos", "semitandem", "tandem", "separados"), 
+                   labels = c("Pés unidos", "Semitandem", "Tandem", "Pos. Estática")) + 
+  facet_wrap(~grupo) +
+  labs(x = "", y = "Amplitude ML (cm)", col = "") + 
+  theme_bw() + 
+  theme(legend.position = "bottom")
+```
+
+# Amplitude ântero-posterior (cm)
+```{r}
+# Obter medidas das médias
+df_ampl_ap <- obter_medias(m1, m2, meta_m1, meta_m2, "ampl_ap")
+
+# Formato longo para o teste da MANOVA
+df_ampl_ap_w <- df_ampl_ap %>%
+  pivot_wider(names_from = trat, values_from = "media_ampl_ap")
+
+# Modelo
+modelo <- manova(
+  cbind(
+    log(juntos),
+    log(semitandem), 
+    log(separados), 
+    log(tandem)
+  ) ~ grupo*momento, data = df_ampl_ap_w)
+
+summary(modelo, test = "Wilks")
+```
+
+## Comparações
+
+```{r, ampl_ap, fig.cap="\\label{fig:ampl_ml}Amplitude ântero-posterior (cm). Cada ponto indica a média e as retas indicam o erro padrão."}
+df_plot <- df_ampl_ap %>% 
+  group_by(momento, grupo, trat) %>% 
+  summarise(media = mean(media_ampl_ap, na.rm = T), desvio = se(media_ampl_ap)) %>% 
+  ungroup() %>% 
+  mutate(momento = factor(momento, levels = c("Pré", "Pós")))
+
+ggplot(df_plot) + 
+  geom_point(aes(x = trat, y = media, col = momento), 
+             position = position_dodge(width = 0.5)) +
+  geom_errorbar(aes(x = trat, ymin = media-desvio, ymax = media+desvio, col = momento), 
+                position = position_dodge(width = 0.5), width = 0.2) + 
+  scale_x_discrete(limits = c("juntos", "semitandem", "tandem", "separados"), 
+                   labels = c("Pés unidos", "Semitandem", "Tandem", "Pos. Estática")) + 
+  facet_wrap(~grupo) +
+  labs(x = "", y = "Amplitude AP (cm)", col = "") + 
+  theme_bw() +
+  theme(legend.position = "bottom")
+
+ggsave("output/figuras/biomecanica/amplitude_ap.png", width = 7, height = 4, dpi = 300)
+ggsave("output/figuras/biomecanica/amplitude_ap.svg", width = 7, height = 4, dpi = 300)
+```
+
+
+# Velocidade média total (cm/s)
+```{r}
+# Obter medidas das médias
+df_vel_media_total <- obter_medias(m1, m2, meta_m1, meta_m2, "vel_media_total")
+
+# Formato longo para o teste da MANOVA
+df_vel_media_total_w <- df_vel_media_total %>%
+  pivot_wider(names_from = trat, values_from = "media_vel_media_total")
+
+# Modelo
+modelo <- manova(
+  cbind(
+    log(juntos),
+    log(semitandem), 
+    log(separados), 
+    log(tandem)
+  ) ~ grupo*momento, data = df_vel_media_total_w)
+
+summary(modelo, test = "Wilks")
+```
+
+## Comparações
+
+```{r, vel_media_total, fig.cap="\\label{fig:vel_media_total}Velocidade média total (cm/s). Cada ponto indica a média e as retas indicam o erro padrão."}
+df_plot <- df_vel_media_total %>% 
+  group_by(momento, grupo, trat) %>% 
+  summarise(media = mean(media_vel_media_total, na.rm = T), desvio = se(media_vel_media_total)) %>% 
+  ungroup() %>% 
+  mutate(momento = factor(momento, levels = c("Pré", "Pós")))
+
+ggplot(df_plot) + 
+  geom_point(aes(x = trat, y = media, col = momento), 
+             position = position_dodge(width = 0.5)) +
+  geom_errorbar(aes(x = trat, ymin = media-desvio, ymax = media+desvio, col = momento), 
+                position = position_dodge(width = 0.5), width = 0.2) + 
+  scale_x_discrete(limits = c("juntos", "semitandem", "tandem", "separados"), 
+                   labels = c("Pés unidos", "Semitandem", "Tandem", "Pos. Estática")) + 
+  facet_wrap(~grupo) +
+  labs(x = "", y = "Velocidade média total", col = "") + 
+  theme_bw() +
+  theme(legend.position = "bottom")
+```
+
+# Root mean square (RMS) medial-lateral 
+```{r}
+# Obter medidas das médias
+df_rms_ml <- obter_medias(m1, m2, meta_m1, meta_m2, "rms_ml")
+
+# Formato longo para o teste da MANOVA
+df_rms_ml_w <- df_rms_ml %>%
+  pivot_wider(names_from = trat, values_from = "media_rms_ml")
+
+# Modelo
+modelo <- manova(
+  cbind(
+    log(juntos),
+    log(semitandem), 
+    log(separados), 
+    log(tandem)
+  ) ~ grupo*momento, data = df_rms_ml_w)
+
+summary(modelo, test = "Wilks")
+```
+
+## Comparações
+
+```{r, rms_ml, fig.cap="\\label{fig:rms_ml}Root mean square (RMS) medial-lateral (cm/s). Cada ponto indica a média e as retas indicam o erro padrão."}
+df_plot <- df_rms_ml %>% 
+  group_by(momento, grupo, trat) %>% 
+  summarise(media = mean(media_rms_ml, na.rm = T), desvio = se(media_rms_ml)) %>% 
+  ungroup() %>% 
+  mutate(momento = factor(momento, levels = c("Pré", "Pós")))
+
+ggplot(df_plot) + 
+  geom_point(aes(x = trat, y = media, col = momento), 
+             position = position_dodge(width = 0.5)) +
+  geom_errorbar(aes(x = trat, ymin = media-desvio, ymax = media+desvio, col = momento), 
+                position = position_dodge(width = 0.5), width = 0.2) + 
+  scale_x_discrete(limits = c("juntos", "semitandem", "tandem", "separados"), 
+                   labels = c("Pés unidos", "Semitandem", "Tandem", "Pos. Estática")) + 
+  facet_wrap(~grupo) +
+  labs(x = "", y = "RMS ML", col = "") + 
+  theme_bw() +
+  theme(legend.position = "bottom")
+
+ggsave("output/figuras/biomecanica/rms_ml.png", width = 7, height = 4, dpi = 300)
+ggsave("output/figuras/biomecanica/rms_ml.svg", width = 7, height = 4, dpi = 300)
+```
+
+# Root mean square (RMS) ântero-posterior 
+```{r}
+# Obter medidas das médias
+df_rms_ap <- obter_medias(m1, m2, meta_m1, meta_m2, "rms_ap")
+
+# Formato longo para o teste da MANOVA
+df_rms_ap_w <- df_rms_ap %>%
+  pivot_wider(names_from = trat, values_from = "media_rms_ap")
+
+# Modelo
+modelo <- manova(
+  cbind(
+    log(juntos),
+    log(semitandem), 
+    log(separados), 
+    log(tandem)
+  ) ~ grupo*momento, data = df_rms_ap_w)
+
+summary(modelo, test = "Wilks")
+```
+
+## Comparações
+
+```{r, rms_ap, fig.cap="\\label{fig:rms_ap}Root mean square (RMS) ântero-posterior  (cm/s). Cada ponto indica a média e as retas indicam o erro padrão."}
+df_plot <- df_rms_ap %>% 
+  group_by(momento, grupo, trat) %>% 
+  summarise(media = mean(media_rms_ap, na.rm = T), desvio = se(media_rms_ap)) %>% 
+  ungroup() %>% 
+  mutate(momento = factor(momento, levels = c("Pré", "Pós")))
+
+ggplot(df_plot) + 
+  geom_point(aes(x = trat, y = media, col = momento), 
+             position = position_dodge(width = 0.5)) +
+  geom_errorbar(aes(x = trat, ymin = media-desvio, ymax = media+desvio, col = momento), 
+                position = position_dodge(width = 0.5), width = 0.2) + 
+  scale_x_discrete(limits = c("juntos", "semitandem", "tandem", "separados"), 
+                   labels = c("Pés unidos", "Semitandem", "Tandem", "Pos. Estática")) + 
+  facet_wrap(~grupo) +
+  labs(x = "", y = "RMS AP", col = "") + 
+  theme_bw() +
+  theme(legend.position = "bottom")
+
+ggsave("output/figuras/biomecanica/rms_ap.png", width = 7, height = 4, dpi = 300)
+ggsave("output/figuras/biomecanica/rms_ap.svg", width = 7, height = 4, dpi = 300)
+```
+
+# Resumo
+
+Não foi observada significância estatística para a interação entre grupos e momentos de coleta dos dados para as variáveis consideradas. 

@@ -1,0 +1,9 @@
+---
+title: "Efeitos do programa de exercício domiciliar para idosos com doença de Alzheimer (AD-HOMEX) nas funções cognitivas e no controle postural: Um ensaio clínico randomizado e controlado"
+output:
+  workflowr::wflow_html:
+    toc: false
+editor_options:
+  chunk_output_type: console
+---
+

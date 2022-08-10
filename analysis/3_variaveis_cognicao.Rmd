@@ -1,0 +1,776 @@
+---
+title: "3_variaveis_cognicao"
+author: "iaradsouza1"
+date: "2022-08-01"
+output: workflowr::wflow_html
+editor_options:
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = F, message = F)
+
+library(tidyverse)
+library(broom)
+library(xlsx)
+library(performance)
+library(gtsummary)
+
+# Dados
+dados <- read.csv("data/variaveis.csv", sep = ";", header = T, dec = ",")
+
+# Metadados gerais de cada paciente
+meta <- read.csv("data/meta2.csv", sep = ";", header = T, dec = ",", encoding = "UTF-8")
+
+dados <- inner_join(dados, meta %>% select(individuos, grupo), by = "individuos") %>%
+  mutate(grupo = factor(ifelse(grupo == "GC", "Controle", "Intervenção"), 
+                        levels = c("Controle", "Intervenção")))
+
+se <- function(x) sqrt(var(x[!is.na(x)]) / length(x[!is.na(x)]))
+
+if(!dir.exists("output/figuras/variaveis_cognicao/")) {
+  dir.create("output/figuras/variaveis_cognicao/",recursive = T)
+}
+
+if(!dir.exists("output/tabelas/variaveis_cognicao/")) {
+  dir.create("output/tabelas/variaveis_cognicao/",recursive = T)
+}
+
+# Função para gerar tabela de resultados
+
+show_table <- function(modelo, label) {
+  
+  modelo %>% 
+  tbl_regression(
+    tidy_fun = broom::tidy, intercept = T, 
+    add_estimate_to_reference_rows = T,
+    pvalue_fun = ~ style_pvalue(.x, digits = 3)
+  ) %>% 
+  bold_labels() %>% 
+  bold_p(t = 0.10) %>% 
+  modify_header(
+    label = "**Variáveis**",
+    estimate = "**beta**",
+    ci = "**IC 95%**",
+    p.value = "**Valor p**"
+  ) %>% 
+  modify_footnote(everything() ~ NA, abbreviation = T) %>% 
+  italicize_levels() %>% 
+  modify_caption(paste0("Modelo para variável ", label))
+  
+}
+
+# Checar modelos?
+cm <- TRUE
+```
+
+# Addenbrooke’s Cognitive Examination-Revised (ACE)
+
+## Atenção e orientação / Fluência / Linguagem / Memória / Visual-Espacial
+```{r}
+# Preparar dados
+ace_plot <- dados %>% 
+  select(contains("ace_"), grupo) %>% 
+  na.omit() %>% 
+  pivot_longer(-grupo, names_to = "variavel", values_to = "valor") %>% 
+  separate(variavel, into = c("var1", "momento", "res", "tipo"))
+
+# Atenção
+ace_plot %>% 
+  filter(tipo == "atencao") %>% 
+  select(-var1, -res, -tipo) %>% 
+  mutate(valor = valor) -> atencao
+modelo_atencao <- lm(log(valor+0.01) ~ momento*grupo, data = atencao)
+res_atencao <- tidy(anova(modelo_atencao)) %>% 
+  rename(F_statistic = statistic) %>% 
+  mutate_if(is.numeric, round, digits = 4)
+
+show_table(modelo_atencao, "'Atenção'")
+
+# Memória
+ace_plot %>% 
+  filter(tipo == "memoria") %>% 
+  select(-var1, -res, -tipo) %>% 
+  mutate(valor = valor) -> memoria
+modelo_memoria <- lm(log(valor+0.01) ~ momento*grupo, data = memoria)
+res_memoria <- tidy(anova(modelo_atencao)) %>% 
+  rename(F_statistic = statistic) %>% 
+  mutate_if(is.numeric, round, digits = 4)
+
+show_table(modelo_memoria, "'Memória'")
+
+# Fluencia
+ace_plot %>% 
+  filter(tipo == "fluencia") %>% 
+  select(-var1, -res, -tipo) %>% 
+  mutate(valor = valor) -> fluencia
+modelo_fluencia <- lm(log(valor+0.01) ~ momento*grupo, data = fluencia)
+res_fluencia <- tidy(anova(modelo_fluencia)) %>% 
+  rename(F_statistic = statistic) %>% 
+  mutate_if(is.numeric, round, digits = 4)
+
+show_table(modelo_fluencia, "'Fluência'")
+
+# Linguagem
+ace_plot %>% 
+  filter(tipo == "linguagem") %>% 
+  select(-var1, -res, -tipo) %>% 
+  mutate(valor = valor) -> linguagem
+modelo_linguagem <- lm(log(valor+0.01) ~ momento*grupo, data = linguagem)
+res_linguagem <- tidy(anova(modelo_linguagem)) %>% 
+  rename(F_statistic = statistic) %>% 
+  mutate_if(is.numeric, round, digits = 4)
+
+show_table(modelo_linguagem, "'Linguagem'")
+
+# Visualização
+ace_plot %>% 
+  filter(tipo == "vis") %>% 
+  select(-var1, -res, -tipo) %>% 
+  mutate(valor = valor) -> vis
+modelo_vis <- lm(log(valor+0.01) ~ momento*grupo, data = vis)
+res_vis <- tidy(anova(modelo_vis)) %>% 
+  rename(F_statistic = statistic) %>% 
+  mutate_if(is.numeric, round, digits = 4)
+
+show_table(modelo_vis, "'Visualização'")
+
+# MEEM
+ace_plot %>% 
+  filter(tipo == "meem") %>% 
+  select(-var1, -res, -tipo) %>% 
+  mutate(valor = log(valor+0.01)) -> meem
+modelo_meem <- lm(log(valor+0.01) ~ momento*grupo, data = meem)
+res_meem <- tidy(anova(modelo_meem)) %>% 
+  rename(F_statistic = statistic) %>% 
+  mutate_if(is.numeric, round, digits = 4)
+
+show_table(modelo_meem, "'MEEM'")
+
+# Total
+ace_plot %>% 
+  filter(tipo == "total") %>% 
+  select(-var1, -res, -tipo) %>% 
+  mutate(valor = valor) -> total
+modelo_total <- lm(log(valor+0.01) ~ momento*grupo, data = total)
+res_total <- tidy(anova(modelo_total)) %>% 
+  rename(F_statistic = statistic) %>% 
+  mutate_if(is.numeric, round, digits = 4)
+
+show_table(modelo_total, "'Total'")
+```
+
+```{r}
+# Plotar as 5 subvariaveis do teste ACER ----
+var_names <- c(
+  "atencao" = "Atenção e Orientação",
+  "fluencia" = "Fluência",
+  "linguagem" = "Linguagem",
+  "memoria" = "Memória",
+  "vis" = "Visual-Espacial"
+)
+
+ace_plot2 <- ace_plot %>% 
+  select(-var1, -res) %>% 
+  group_by(momento, grupo, tipo) %>% 
+  filter(!(tipo %in% c("total", "meem"))) %>% 
+  summarise(media = mean(valor, na.rm = T),
+            ep = se(valor)) %>% 
+  mutate(momento = factor(momento, levels = c("pre", "pos"), labels = c("Pré", "Pós")))
+
+ggplot(ace_plot2) +
+  geom_point(aes(x = momento, y = media, col = grupo),
+             position = position_dodge(width = 0.5)) + 
+  geom_errorbar(aes(x = momento, ymin = media-ep, ymax = media+ep, col = grupo), 
+                position = position_dodge(width = 0.5), width = 0.2) + 
+  facet_grid(cols = vars(tipo), labeller = as_labeller(var_names)) +
+  labs(x = "", y = "Pontuação", col = "", title = "ACER") + 
+  theme_bw() + 
+  theme(legend.position = "bottom")
+
+ggsave("output/figuras/variaveis_cognicao/acer_5var.png", width = 7, height = 4, dpi = 300)
+ggsave("output/figuras/variaveis_cognicao/acer_5var.svg", width = 7, height = 4, dpi = 300)
+
+# MEEM ----
+ace_plot3 <- ace_plot %>% 
+  select(-var1, -res) %>% 
+  filter(tipo == "meem") %>% 
+  group_by(momento, grupo, tipo) %>% 
+  summarise(media = mean(valor, na.rm = T),
+            ep = se(valor)) %>% 
+  mutate(momento = factor(momento, levels = c("pre", "pos"), labels = c("Pré", "Pós")))
+
+ggplot(ace_plot3) +
+  geom_point(aes(x = momento, y = media, col = grupo),
+             position = position_dodge(width = 0.5)) + 
+  geom_errorbar(aes(x = momento, ymin = media-ep, ymax = media+ep, col = grupo), 
+                position = position_dodge(width = 0.5), width = 0.2) + 
+  labs(x = "", y = "Pontuação", col = "", title = "MEEM") + 
+  theme_bw() + 
+  theme(legend.position = "bottom")
+
+ggsave("output/figuras/variaveis_cognicao/meem_acer.png", width = 5, height = 4, dpi = 300)
+ggsave("output/figuras/variaveis_cognicao/meem_acer.svg", width = 5, height = 4, dpi = 300)
+
+# TOTAL ----
+ace_plot4 <- ace_plot %>% 
+  select(-var1, -res) %>% 
+  filter(tipo == "total") %>% 
+  group_by(momento, grupo, tipo) %>% 
+  summarise(media = mean(valor, na.rm = T),
+            ep = se(valor)) %>% 
+  mutate(momento = factor(momento, levels = c("pre", "pos"), labels = c("Pré", "Pós")))
+
+ggplot(ace_plot4) +
+  geom_point(aes(x = momento, y = media, col = grupo),
+             position = position_dodge(width = 0.5)) + 
+  geom_errorbar(aes(x = momento, ymin = media-ep, ymax = media+ep, col = grupo), 
+                position = position_dodge(width = 0.5), width = 0.2) + 
+  labs(x = "", y = "Pontuação", col = "", title = "Total") + 
+  theme_bw() + 
+  theme(legend.position = "bottom")
+
+ggsave("output/figuras/variaveis_cognicao/total_acer.png", width = 5, height = 4, dpi = 300)
+ggsave("output/figuras/variaveis_cognicao/total_acer.svg", width = 5, height = 4, dpi = 300)
+```
+
+
+```{r}
+# Salvar tabelas com as estatísticas
+write.xlsx("", file = "output/tabelas/variaveis_cognicao/acer_est.xlsx", row.names = F)
+
+res_atencao %>% 
+  write.xlsx("output/tabelas/variaveis_cognicao/acer_est.xlsx", sheetName = "atencao", append = T)
+
+res_fluencia %>% 
+  write.xlsx("output/tabelas/variaveis_cognicao/acer_est.xlsx", sheetName = "fluencia", append = T)
+
+res_linguagem %>% 
+  write.xlsx("output/tabelas/variaveis_cognicao/acer_est.xlsx", sheetName = "linguagem", append = T)
+
+res_vis %>% 
+  write.xlsx("output/tabelas/variaveis_cognicao/acer_est.xlsx", sheetName = "vis", append = T)
+
+res_memoria %>% 
+  write.xlsx("output/tabelas/variaveis_cognicao/acer_est.xlsx", sheetName = "memoria", append = T)
+
+res_meem %>% 
+  write.xlsx("output/tabelas/variaveis_cognicao/acer_est.xlsx", sheetName = "meem", append = T)
+
+res_total %>% 
+  write.xlsx("output/tabelas/variaveis_cognicao/acer_est.xlsx", sheetName = "total", append = T)
+```
+
+## Checagem dos modelos
+
+### Atenção e orientação
+```{r, echo=cm, eval=cm}
+check_model(modelo_atencao)
+```
+### Fluência
+```{r, echo=cm, eval=cm}
+check_model(modelo_fluencia)
+```
+### Linguagem
+```{r, echo=cm, eval=cm}
+check_model(modelo_linguagem)
+```
+### Memória
+```{r, echo=cm, eval=cm}
+check_model(modelo_memoria)
+```
+### Visual-Espacial
+```{r, echo=cm, eval=cm}
+check_model(modelo_vis)
+```
+### MEEM
+```{r, echo=cm, eval=cm}
+check_model(modelo_meem)
+```
+### Total
+```{r, echo=cm, eval=cm}
+check_model(modelo_total)
+```
+
+# TDR
+```{r}
+# Selecionar os dados
+tdr_plot <- dados %>% 
+  select(contains("tdr_"), grupo) %>% 
+  na.omit() %>% 
+  pivot_longer(-grupo, names_to = "variavel", values_to = "valor") %>% 
+  separate(variavel, into = c("var1", "momento")) %>% 
+  mutate(momento = factor(momento, levels = c("pre", "pos"), labels = c("Pré", "Pós")))
+
+modelo_tdr <- lm(log(valor+0.01) ~ momento*grupo, data = tdr_plot)
+res_tdr <- tidy(anova(modelo_tdr)) %>% 
+  rename(F_statistic = statistic) %>% 
+  mutate_if(is.numeric, round, digits = 4)
+
+show_table(modelo_tdr, "TDR")
+
+# Plot 
+tdr_plot %>% 
+  select(-var1) %>% 
+  group_by(momento, grupo) %>% 
+  summarise(media = mean(valor, na.rm = T),
+            ep = se(valor)) %>% 
+  ggplot() +
+  geom_point(aes(x = momento, y = media, col = grupo),
+             position = position_dodge(width = 0.5)) + 
+  geom_errorbar(aes(x = momento, ymin = media-ep, ymax = media+ep, col = grupo), 
+                position = position_dodge(width = 0.5), width = 0.2) + 
+  labs(x = "", y = "Pontuação", col = "", title = "TDR") + 
+  theme_bw() + 
+  theme(legend.position = "bottom")
+
+# Salvar plot
+ggsave("output/figuras/variaveis_cognicao/tdr.png", width = 5, height = 4, dpi = 300)
+ggsave("output/figuras/variaveis_cognicao/tdr.svg", width = 5, height = 4, dpi = 300)
+
+# Salvar tabela com a estatística
+res_tdr %>%
+  write.xlsx("output/tabelas/variaveis_cognicao/tdr.xlsx")
+```
+
+## Checagem do modelo 
+
+```{r}
+check_model(modelo_tdr)
+```
+
+# BAF
+```{r}
+# Selecionar os dados 
+baf_plot <- dados %>% 
+  select(contains("baf_"), grupo) %>% 
+  na.omit() %>% 
+  pivot_longer(-grupo, names_to = "variavel", values_to = "valor") %>% 
+  separate(variavel, into = c("var1", "momento")) %>% 
+  mutate(momento = factor(momento, levels = c("pre", "pos"), labels = c("Pré", "Pós")))
+
+modelo_baf <- lm(log(valor+0.01) ~ momento*grupo, data = baf_plot)
+res_baf <- tidy(anova(modelo_baf)) %>% 
+  rename(F_statistic = statistic) %>% 
+  mutate_if(is.numeric, round, digits = 4)
+
+show_table(modelo_baf, "BAF")
+
+# Plot 
+baf_plot %>% 
+  select(-var1) %>% 
+  group_by(momento, grupo) %>% 
+  summarise(media = mean(valor, na.rm = T),
+            ep = se(valor)) %>% 
+  ggplot() +
+  geom_point(aes(x = momento, y = media, col = grupo),
+             position = position_dodge(width = 0.5)) + 
+  geom_errorbar(aes(x = momento, ymin = media-ep, ymax = media+ep, col = grupo), 
+                position = position_dodge(width = 0.5), width = 0.2) + 
+  labs(x = "", y = "Pontuação", col = "", title = "BAF") + 
+  theme_bw() + 
+  theme(legend.position = "bottom")
+
+# Salvar plot
+ggsave("output/figuras/variaveis_cognicao/baf.png", width = 5, height = 4, dpi = 300)
+ggsave("output/figuras/variaveis_cognicao/baf.svg", width = 5, height = 4, dpi = 300)
+
+# Salvar tabela com a estatística
+res_baf %>%
+  write.xlsx("output/tabelas/variaveis_cognicao/baf.xlsx")
+```
+
+## Checagem do modelo 
+```{r}
+check_model(modelo_baf)
+```
+
+# SBPP
+```{r}
+# Selecionar os dados 
+sbpp_plot <- dados %>% 
+  select(contains("spbb"), grupo) %>% 
+  na.omit() %>% 
+  pivot_longer(-grupo, names_to = "variavel", values_to = "valor") %>% 
+  separate(variavel, into = c("var1", "momento", "tipo")) %>% 
+  mutate(momento = factor(momento, levels = c("pre", "pos"), labels = c("Pré", "Pós")))
+
+# Equilíbrio
+sbpp_plot %>% 
+  filter(tipo == "equilibrio") %>% 
+  select(-var1, -tipo) %>% 
+  mutate(valor = valor) -> equilibrio
+modelo_equilibrio <- lm(log(valor+0.01) ~ momento*grupo, data = equilibrio)
+res_equilibrio <- tidy(anova(modelo_equilibrio)) %>% 
+  rename(F_statistic = statistic) %>% 
+  mutate_if(is.numeric, round, digits = 4)
+
+show_table(modelo_equilibrio, "'SBPP - Equilíbrio'")
+
+# Marcha
+sbpp_plot %>% 
+  filter(tipo == "marcha") %>% 
+  select(-var1, -tipo) %>% 
+  mutate(valor = valor) -> marcha
+modelo_marcha <- lm(log(valor+0.01) ~ momento*grupo, data = marcha)
+res_marcha <- tidy(anova(modelo_marcha)) %>% 
+  rename(F_statistic = statistic) %>% 
+  mutate_if(is.numeric, round, digits = 4)
+
+show_table(modelo_marcha, "'SBPP - Marcha'")
+
+# Senta
+sbpp_plot %>% 
+  filter(tipo == "senta") %>% 
+  select(-var1, -tipo) %>% 
+  mutate(valor = valor) -> senta
+modelo_senta <- lm(log(valor+0.01) ~ momento*grupo, data = senta)
+res_senta <- tidy(anova(modelo_senta)) %>% 
+  rename(F_statistic = statistic) %>% 
+  mutate_if(is.numeric, round, digits = 4)
+
+show_table(modelo_senta, "'SBPP - Senta'")
+
+# Total
+sbpp_plot %>% 
+  filter(tipo == "total") %>% 
+  select(-var1, -tipo) %>% 
+  mutate(valor = valor) -> total
+modelo_total <- lm(log(valor+0.01) ~ momento*grupo, data = total)
+res_total <- tidy(anova(modelo_total)) %>% 
+  rename(F_statistic = statistic) %>% 
+  mutate_if(is.numeric, round, digits = 4)
+
+show_table(modelo_total, "'SBPP - Total'")
+
+# Plot todas as variáveis
+sbpp_plot2 <- sbpp_plot %>% 
+  select(-var1) %>% 
+  group_by(momento, grupo, tipo) %>% 
+  summarise(media = mean(valor, na.rm = T),
+            ep = se(valor))
+
+var_names <- c(
+  "equilibrio" = "Equilíbrio",
+  "marcha" = "Marcha",
+  "senta" = "Senta",
+  "total" = "Total"
+)
+ggplot(sbpp_plot2) +
+  geom_point(aes(x = momento, y = media, col = grupo),
+             position = position_dodge(width = 0.5)) + 
+  geom_errorbar(aes(x = momento, ymin = media-ep, ymax = media+ep, col = grupo), 
+                position = position_dodge(width = 0.5), width = 0.2) + 
+  facet_grid(cols = vars(tipo), labeller = as_labeller(var_names)) +
+  labs(x = "", y = "Pontuação", col = "", title = "SBPP") + 
+  theme_bw() + 
+  theme(legend.position = "bottom")
+
+ggsave("output/figuras/variaveis_cognicao/sbpp_4var.png", width = 7, height = 4, dpi = 300)
+ggsave("output/figuras/variaveis_cognicao/sbpp_4var.svg", width = 7, height = 4, dpi = 300)
+```
+
+*A variável "SBPP - Senta" só possui 2 valores (0 e 1).
+
+```{r}
+# Salvar tabelas com as estatísticas
+write.xlsx("", file = "output/tabelas/variaveis_cognicao/sbpp_est.xlsx", row.names = F)
+
+res_equilibrio %>% 
+  write.xlsx("output/tabelas/variaveis_cognicao/sbpp_est.xlsx", sheetName = "equilibrio", append = T)
+
+res_marcha %>% 
+  write.xlsx("output/tabelas/variaveis_cognicao/sbpp_est.xlsx", sheetName = "marcha", append = T)
+
+res_senta %>% 
+  write.xlsx("output/tabelas/variaveis_cognicao/sbpp_est.xlsx", sheetName = "senta", append = T)
+
+res_total %>% 
+  write.xlsx("output/tabelas/variaveis_cognicao/sbpp_est.xlsx", sheetName = "total", append = T)
+```
+
+## Checagem dos modelos
+
+### Equilíbrio
+```{r, echo=cm, eval=cm}
+check_model(modelo_equilibrio)
+```
+### Marcha
+```{r, echo=cm, eval=cm}
+check_model(modelo_marcha)
+```
+### Senta
+```{r, echo=cm, eval=cm}
+check_model(modelo_senta)
+```
+### Total
+```{r, echo=cm, eval=cm}
+check_model(modelo_total)
+```
+
+# TUG
+```{r}
+# Selecionar os dados 
+tug_plot <- dados %>% 
+  select(contains("tug"), grupo) %>% 
+  na.omit() %>% 
+  pivot_longer(-grupo, names_to = "variavel", values_to = "valor") %>% 
+  separate(variavel, into = c("var1", "momento", "tipo")) %>% 
+  mutate(momento = factor(momento, levels = c("pre", "pos"), labels = c("Pré", "Pós")))
+
+# Tempo
+tug_plot %>% 
+  filter(tipo == "tempo") %>% 
+  select(-var1, -tipo) %>% 
+  mutate(valor = valor) -> tempo
+modelo_tempo <- lm(log(valor+0.01) ~ momento*grupo, data = tempo)
+res_tempo <- tidy(anova(modelo_tempo)) %>% 
+  rename(F_statistic = statistic) %>% 
+  mutate_if(is.numeric, round, digits = 4)
+
+show_table(modelo_tempo, "'TUG - Tempo'")
+
+# Nº de passos
+tug_plot %>% 
+  filter(tipo == "npassos") %>% 
+  select(-var1, -tipo) %>% 
+  mutate(valor = valor) -> npassos
+modelo_npassos <- lm(log(valor+0.01) ~ momento*grupo, data = npassos)
+res_npassos <- tidy(anova(modelo_npassos)) %>% 
+  rename(F_statistic = statistic) %>% 
+  mutate_if(is.numeric, round, digits = 4)
+
+show_table(modelo_npassos, "'TUG - Nº de passos'")
+
+# Plot todas as variáveis
+tug_plot2 <- tug_plot %>% 
+  select(-var1) %>% 
+  group_by(momento, grupo, tipo) %>% 
+  summarise(media = mean(valor, na.rm = T),
+            ep = se(valor))
+
+var_names <- c(
+  "tempo" = "Tempo",
+  "npassos" = "Nº de passos"
+)
+ggplot(tug_plot2) +
+  geom_point(aes(x = momento, y = media, col = grupo),
+             position = position_dodge(width = 0.5)) + 
+  geom_errorbar(aes(x = momento, ymin = media-ep, ymax = media+ep, col = grupo), 
+                position = position_dodge(width = 0.5), width = 0.2) + 
+  facet_grid(cols = vars(tipo), labeller = as_labeller(var_names)) +
+  labs(x = "", y = "Pontuação", col = "", title = "TUG") + 
+  theme_bw() + 
+  theme(legend.position = "bottom")
+
+ggsave("output/figuras/variaveis_cognicao/tug_2var.png", width = 7, height = 4, dpi = 300)
+ggsave("output/figuras/variaveis_cognicao/tug_2var.svg", width = 7, height = 4, dpi = 300)
+
+```
+
+
+```{r}
+# Salvar tabelas com as estatísticas
+write.xlsx("", file = "output/tabelas/variaveis_cognicao/tug_est.xlsx", row.names = F)
+
+res_tempo %>% 
+  write.xlsx("output/tabelas/variaveis_cognicao/tug_est.xlsx", sheetName = "tempo", append = T)
+
+res_npassos %>% 
+  write.xlsx("output/tabelas/variaveis_cognicao/tug_est.xlsx", sheetName = "npassos", append = T)
+```
+
+## Checagem dos modelos
+
+### Tempo
+```{r, echo=cm, eval=cm}
+check_model(modelo_tempo)
+```
+### Nº de passos 
+```{r, echo=cm, eval=cm}
+check_model(modelo_npassos)
+```
+
+###################
+
+# Cornell
+```{r}
+# Selecionar os dados 
+cornell_plot <- dados %>% 
+  select(contains("cornell"), grupo) %>% 
+  na.omit() %>% 
+  pivot_longer(-grupo, names_to = "variavel", values_to = "valor") %>% 
+  separate(variavel, into = c("var1", "momento", "tipo")) %>% 
+  mutate(momento = factor(momento, levels = c("pre", "pos"), labels = c("Pré", "Pós")))
+
+# Tempo
+cornell_plot %>% 
+  filter(tipo == "idoso") %>% 
+  select(-var1, -tipo) %>% 
+  mutate(valor = valor) -> idoso
+modelo_idoso <- lm(log(valor+0.01) ~ momento*grupo, data = idoso)
+res_idoso <- tidy(anova(modelo_idoso)) %>% 
+  rename(F_statistic = statistic) %>% 
+  mutate_if(is.numeric, round, digits = 4)
+
+show_table(modelo_idoso, "'Cornell - Idoso'")
+
+# Cuidador
+cornell_plot %>% 
+  filter(tipo == "cuidador") %>% 
+  select(-var1, -tipo) %>% 
+  mutate(valor = valor) -> cuidador
+modelo_cuidador <- lm(log(valor+0.01) ~ momento*grupo, data = cuidador)
+res_cuidador <- tidy(anova(modelo_cuidador)) %>% 
+  rename(F_statistic = statistic) %>% 
+  mutate_if(is.numeric, round, digits = 4)
+
+show_table(modelo_cuidador, "'Cornell - Cuidador'")
+
+# Plot todas as variáveis
+cornell_plot2 <- cornell_plot %>% 
+  select(-var1) %>% 
+  group_by(momento, grupo, tipo) %>% 
+  summarise(media = mean(valor, na.rm = T),
+            ep = se(valor))
+
+var_names <- c(
+  "idoso" = "Idoso",
+  "cuidador" = "Cuidador"
+)
+
+ggplot(cornell_plot2) +
+  geom_point(aes(x = momento, y = media, col = grupo),
+             position = position_dodge(width = 0.5)) + 
+  geom_errorbar(aes(x = momento, ymin = media-ep, ymax = media+ep, col = grupo), 
+                position = position_dodge(width = 0.5), width = 0.2) + 
+  facet_grid(cols = vars(tipo), labeller = as_labeller(var_names)) +
+  labs(x = "", y = "Pontuação", col = "", title = "Cornell") + 
+  theme_bw() + 
+  theme(legend.position = "bottom")
+
+ggsave("output/figuras/variaveis_cognicao/cornell_2var.png", width = 7, height = 4, dpi = 300)
+ggsave("output/figuras/variaveis_cognicao/cornell_2var.svg", width = 7, height = 4, dpi = 300)
+
+```
+
+
+```{r}
+# Salvar tabelas com as estatísticas
+write.xlsx("", file = "output/tabelas/variaveis_cognicao/cornell_est.xlsx", row.names = F)
+
+res_idoso %>% 
+  write.xlsx("output/tabelas/variaveis_cognicao/cornell_est.xlsx", sheetName = "idoso", append = T)
+
+res_cuidador %>% 
+  write.xlsx("output/tabelas/variaveis_cognicao/cornell_est.xlsx", sheetName = "cuidador", append = T)
+```
+
+## Checagem dos modelos
+
+### Idoso
+```{r, echo=cm, eval=cm}
+check_model(modelo_idoso)
+```
+### Cuidador
+```{r, echo=cm, eval=cm}
+check_model(modelo_cuidador)
+```
+
+# GDS
+```{r}
+# Selecionar os dados
+gds_plot <- dados %>% 
+  select(contains("gds_"), grupo) %>% 
+  na.omit() %>% 
+  pivot_longer(-grupo, names_to = "variavel", values_to = "valor") %>% 
+  separate(variavel, into = c("var1", "momento")) %>% 
+  mutate(momento = factor(momento, levels = c("pre", "pos"), labels = c("Pré", "Pós")))
+
+modelo_gds <- lm(log(valor+0.01) ~ momento*grupo, data = gds_plot)
+res_gds <- tidy(anova(modelo_gds)) %>% 
+  rename(F_statistic = statistic) %>% 
+  mutate_if(is.numeric, round, digits = 4)
+
+show_table(modelo_gds, "GDS")
+
+# Plot 
+gds_plot %>% 
+  select(-var1) %>% 
+  group_by(momento, grupo) %>% 
+  summarise(media = mean(valor, na.rm = T),
+            ep = se(valor)) %>% 
+  ggplot() +
+  geom_point(aes(x = momento, y = media, col = grupo),
+             position = position_dodge(width = 0.5)) + 
+  geom_errorbar(aes(x = momento, ymin = media-ep, ymax = media+ep, col = grupo), 
+                position = position_dodge(width = 0.5), width = 0.2) + 
+  labs(x = "", y = "Pontuação", col = "", title = "GDS") + 
+  theme_bw() + 
+  theme(legend.position = "bottom")
+
+# Salvar plot
+ggsave("output/figuras/variaveis_cognicao/gds.png", width = 5, height = 4, dpi = 300)
+ggsave("output/figuras/variaveis_cognicao/gds.svg", width = 5, height = 4, dpi = 300)
+
+# Salvar tabela com a estatística
+res_tdr %>%
+  write.xlsx("output/tabelas/variaveis_cognicao/gds.xlsx")
+```
+
+## Checagem do modelo 
+
+```{r}
+check_model(modelo_gds)
+```
+
+# BAECKE 
+```{r}
+# Selecionar os dados
+baecke_plot <- dados %>% 
+  select(contains("baecke_"), grupo) %>% 
+  na.omit() %>% 
+  pivot_longer(-grupo, names_to = "variavel", values_to = "valor") %>% 
+  separate(variavel, into = c("var1", "momento")) %>% 
+  mutate(momento = factor(momento, levels = c("pre", "pos"), labels = c("Pré", "Pós")))
+
+modelo_baecke <- lm(log(valor+0.01) ~ momento*grupo, data = baecke_plot)
+res_baecke <- tidy(anova(modelo_baecke)) %>% 
+  rename(F_statistic = statistic) %>% 
+  mutate_if(is.numeric, round, digits = 4)
+
+show_table(modelo_baecke, "Baecke")
+
+# Plot 
+baecke_plot %>% 
+  select(-var1) %>% 
+  group_by(momento, grupo) %>% 
+  summarise(media = mean(valor, na.rm = T),
+            ep = se(valor)) %>% 
+  ggplot() +
+  geom_point(aes(x = momento, y = media, col = grupo),
+             position = position_dodge(width = 0.5)) + 
+  geom_errorbar(aes(x = momento, ymin = media-ep, ymax = media+ep, col = grupo), 
+                position = position_dodge(width = 0.5), width = 0.2) + 
+  labs(x = "", y = "Pontuação", col = "", title = "Baecke") + 
+  theme_bw() + 
+  theme(legend.position = "bottom")
+
+# Salvar plot
+ggsave("output/figuras/variaveis_cognicao/baecke.png", width = 5, height = 4, dpi = 300)
+ggsave("output/figuras/variaveis_cognicao/baecke.svg", width = 5, height = 4, dpi = 300)
+
+# Salvar tabela com a estatística
+res_tdr %>%
+  write.xlsx("output/tabelas/variaveis_cognicao/baecke.xlsx")
+```
+
+## Checagem do modelo 
+
+```{r}
+check_model(modelo_baecke)
+```
+
+# Resumo
+
+Apenas a variável BAECKE se mostrou significativa (p-valor < 0.05 para a interação entre grupos e momentos).

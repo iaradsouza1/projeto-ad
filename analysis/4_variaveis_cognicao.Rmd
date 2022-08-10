@@ -1,0 +1,432 @@
+---
+title: "4_variaveis_cognicao"
+author: "iaradsouza1"
+date: "2022-08-09"
+output: workflowr::wflow_html
+editor_options:
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = F, message = F)
+
+library(tidyverse)
+library(broom)
+library(xlsx)
+library(performance)
+library(gtsummary)
+
+# Dados
+dados <- read.csv("data/variaveis.csv", sep = ";", header = T, dec = ",")
+
+# Metadados gerais de cada paciente
+meta <- read.csv("data/meta2.csv", sep = ";", header = T, dec = ",", encoding = "UTF-8")
+
+dados <- inner_join(dados, meta %>% select(individuos, grupo), by = "individuos") %>%
+  mutate(grupo = factor(ifelse(grupo == "GC", "Controle", "Intervenção"), 
+                        levels = c("Controle", "Intervenção")))
+
+se <- function(x) sqrt(var(x[!is.na(x)]) / length(x[!is.na(x)]))
+
+if(!dir.exists("output/figuras/variaveis_cognicao/")) {
+  dir.create("output/figuras/variaveis_cognicao/",recursive = T)
+}
+
+if(!dir.exists("output/tabelas/variaveis_cognicao/")) {
+  dir.create("output/tabelas/variaveis_cognicao/",recursive = T)
+}
+
+# Função para gerar tabela de resultados
+
+show_table <- function(modelo, label) {
+  
+  modelo %>% 
+  tbl_regression(
+    tidy_fun = broom::tidy, intercept = T, 
+    add_estimate_to_reference_rows = T,
+    pvalue_fun = ~ style_pvalue(.x, digits = 3)
+  ) %>% 
+  bold_labels() %>% 
+  bold_p(t = 0.10) %>% 
+  modify_header(
+    label = "**Variáveis**",
+    estimate = "**beta**",
+    ci = "**IC 95%**",
+    p.value = "**Valor p**"
+  ) %>% 
+  modify_footnote(everything() ~ NA, abbreviation = T) %>% 
+  italicize_levels() %>% 
+  modify_caption(paste0("Modelo para variável ", label))
+  
+}
+
+# Checar modelos?
+cm <- TRUE
+
+```
+
+# TMT A
+
+```{r}
+# Selecionar os dados
+tmta_plot <- dados %>% 
+  select(contains("tmt_pre_a"), contains("tmt_pos_a"), grupo) %>% 
+  mutate_if(is.character, .funs = ~ as.numeric(gsub(",", ".", .x))) %>% 
+  na.omit() %>% 
+  pivot_longer(-grupo, names_to = "variavel", values_to = "valor") %>% 
+  separate(variavel, into = c("var1", "momento", "tipo", "var2")) %>% 
+  mutate(momento = factor(momento, levels = c("pre", "pos"), labels = c("Pré", "Pós")))
+
+# Tempo
+tmta_plot %>% 
+  filter(var2 == "tempo") %>% 
+  select(-var1, -var2, -tipo) -> tmta_tempo
+
+modelo_tmta_tempo <- lm(log(valor+0.001) ~ momento*grupo, data = tmta_tempo)
+
+res_tmta_tempo <- tidy(anova(modelo_tmta_tempo)) %>% 
+  rename(F_statistic = statistic) %>% 
+  mutate_if(is.numeric, round, digits = 4)
+
+show_table(modelo_tmta_tempo, "'TMT A - Tempo'")
+cat("\n\n")
+
+# Acertos
+tmta_plot %>% 
+  filter(var2 == "acertos") %>% 
+  select(-var1, -var2, -tipo) -> tmta_acertos
+
+modelo_tmta_acertos <- lm(log(valor+0.001) ~ momento*grupo, data = tmta_acertos)
+
+res_tmta_acertos <- tidy(anova(modelo_tmta_acertos)) %>% 
+  rename(F_statistic = statistic) %>% 
+  mutate_if(is.numeric, round, digits = 4)
+
+show_table(modelo_tmta_acertos, "'TMT A - Acertos'")
+cat("\n\n")
+```
+
+```{r}
+# Plotar as 5 subvariaveis do teste TMT A ----
+var_names <- c(
+  "tempo" = "Tempo",
+  "acertos" = "Acertos"
+)
+
+tmta_plot2 <- tmta_plot %>% 
+  select(-var1, -tipo) %>% 
+  group_by(momento, grupo, var2) %>% 
+  summarise(media = mean(valor, na.rm = T),
+            ep = se(valor))
+
+ggplot(tmta_plot2) +
+  geom_point(aes(x = momento, y = media, col = grupo),
+             position = position_dodge(width = 0.5)) + 
+  geom_errorbar(aes(x = momento, ymin = media-ep, ymax = media+ep, col = grupo), 
+                position = position_dodge(width = 0.5), width = 0.2) + 
+  facet_grid(cols = vars(var2), labeller = as_labeller(var_names)) +
+  labs(x = "", y = "Pontuação", col = "", title = "TMT A") + 
+  theme_bw() + 
+  theme(legend.position = "bottom")
+
+ggsave("output/figuras/variaveis_cognicao/tmta_2var.png", width = 7, height = 4, dpi = 300)
+ggsave("output/figuras/variaveis_cognicao/tmta_2var.svg", width = 7, height = 4, dpi = 300)
+
+```
+
+```{r}
+# Salvar tabelas com as estatísticas
+write.xlsx("", file = "output/tabelas/variaveis_cognicao/tmta_est.xlsx", row.names = F)
+
+res_tmta_tempo %>% 
+  write.xlsx("output/tabelas/variaveis_cognicao/tmta_est.xlsx", sheetName = "tempo", append = T)
+
+res_tmta_acertos %>% 
+  write.xlsx("output/tabelas/variaveis_cognicao/tmta_est.xlsx", sheetName = "acertos", append = T)
+
+```
+
+## Checagem dos modelos
+
+### Tempo
+```{r, echo=FALSE, eval=cm}
+check_model(modelo_tmta_tempo)
+```
+### Acertos
+```{r, echo=FALSE, eval=cm}
+check_model(modelo_tmta_acertos)
+```
+
+# TMT B
+
+```{r}
+# Selecionar os dados
+tmtb_plot <- dados %>% 
+  select(contains("tmt_pre_b"), contains("tmt_pos_b"), grupo) %>% 
+  mutate_if(is.character, .funs = ~ as.numeric(gsub(",", ".", .x))) %>% 
+  na.omit() %>% 
+  pivot_longer(-grupo, names_to = "variavel", values_to = "valor") %>% 
+  separate(variavel, into = c("var1", "momento", "tipo", "var2")) %>% 
+  mutate(momento = factor(momento, levels = c("pre", "pos"), labels = c("Pré", "Pós")))
+
+# Tempo
+tmtb_plot %>% 
+  filter(var2 == "tempo") %>% 
+  select(-var1, -var2, -tipo) -> tmtb_tempo
+
+modelo_tmtb_tempo <- lm(log(valor+0.001) ~ momento*grupo, data = tmtb_tempo)
+
+res_tmtb_tempo <- tidy(anova(modelo_tmtb_tempo)) %>% 
+  rename(F_statistic = statistic) %>% 
+  mutate_if(is.numeric, round, digits = 4)
+
+show_table(modelo_tmtb_tempo, "'TMT B - Tempo'")
+cat("\n\n")
+
+# Acertos
+tmtb_plot %>% 
+  filter(var2 == "acertos") %>% 
+  select(-var1, -var2, -tipo) -> tmtb_acertos
+
+modelo_tmtb_acertos <- lm(log(valor+0.001) ~ momento*grupo, data = tmtb_acertos)
+
+res_tmtb_acertos <- tidy(anova(modelo_tmtb_acertos)) %>% 
+  rename(F_statistic = statistic) %>% 
+  mutate_if(is.numeric, round, digits = 4)
+
+show_table(modelo_tmtb_acertos, "'TMT B - Acertos'")
+cat("\n\n")
+```
+
+```{r}
+# Plotar as 5 subvariaveis do teste TMT A ----
+var_names <- c(
+  "tempo" = "Tempo",
+  "acertos" = "Acertos"
+)
+
+tmtb_plot2 <- tmtb_plot %>% 
+  select(-var1, -tipo) %>% 
+  group_by(momento, grupo, var2) %>% 
+  summarise(media = mean(valor, na.rm = T),
+            ep = se(valor))
+
+ggplot(tmtb_plot2) +
+  geom_point(aes(x = momento, y = media, col = grupo),
+             position = position_dodge(width = 0.5)) + 
+  geom_errorbar(aes(x = momento, ymin = media-ep, ymax = media+ep, col = grupo), 
+                position = position_dodge(width = 0.5), width = 0.2) + 
+  facet_grid(cols = vars(var2), labeller = as_labeller(var_names)) +
+  labs(x = "", y = "Pontuação", col = "", title = "TMT B") + 
+  theme_bw() + 
+  theme(legend.position = "bottom")
+
+ggsave("output/figuras/variaveis_cognicao/tmtb_2var.png", width = 7, height = 4, dpi = 300)
+ggsave("output/figuras/variaveis_cognicao/tmtb_2var.svg", width = 7, height = 4, dpi = 300)
+
+```
+
+```{r}
+# Salvar tabelas com as estatísticas
+write.xlsx("", file = "output/tabelas/variaveis_cognicao/tmtb_est.xlsx", row.names = F)
+
+res_tmtb_tempo %>% 
+  write.xlsx("output/tabelas/variaveis_cognicao/tmtb_est.xlsx", sheetName = "tempo", append = T)
+
+res_tmtb_acertos %>% 
+  write.xlsx("output/tabelas/variaveis_cognicao/tmtb_est.xlsx", sheetName = "acertos", append = T)
+
+```
+
+## Checagem dos modelos
+
+### Tempo
+```{r, echo=FALSE, eval=cm}
+check_model(modelo_tmtb_tempo)
+```
+### Acertos
+```{r, echo=FALSE, eval=cm}
+check_model(modelo_tmtb_acertos)
+```
+
+# Teste de alcance
+
+```{r}
+# Selecionar os dados
+alcance_plot <- dados %>% 
+  select(contains("pre_teste_alcance"), contains("pos_teste_alcance"), grupo) %>% 
+  na.omit() %>% 
+  pivot_longer(-grupo, names_to = "variavel", values_to = "valor") %>% 
+  separate(variavel, into = c("momento", "teste", "tipo", "var2")) %>% 
+  mutate(momento = factor(momento, levels = c("pre", "pos"), labels = c("Pré", "Pós")))
+
+# Anterior
+alcance_plot %>% 
+  filter(var2 == "anterior") %>% 
+  select(-teste, -var2, -tipo) -> alcance_anterior
+
+modelo_alcance_anterior <- lm(log(valor+0.001) ~ momento*grupo, data = alcance_anterior)
+
+res_alcance_anterior <- tidy(anova(modelo_alcance_anterior)) %>% 
+  rename(F_statistic = statistic) %>% 
+  mutate_if(is.numeric, round, digits = 4)
+
+show_table(modelo_alcance_anterior, "'Teste de alcance anterior'")
+cat("\n\n")
+
+# Lateral
+alcance_plot %>% 
+  filter(var2 == "lateral") %>% 
+  select(-teste, -var2, -tipo) -> alcance_lateral
+
+modelo_alcance_lateral <- lm(log(valor+0.001) ~ momento*grupo, data = alcance_lateral)
+
+res_alcance_lateral <- tidy(anova(modelo_alcance_lateral)) %>% 
+  rename(F_statistic = statistic) %>% 
+  mutate_if(is.numeric, round, digits = 4)
+
+show_table(modelo_alcance_lateral, "'Teste de alcance lateral'")
+cat("\n\n")
+```
+
+```{r}
+# Plotar as 5 subvariaveis do teste TMT A ----
+var_names <- c(
+  "anterior" = "Anterior",
+  "lateral" = "Lateral"
+)
+
+alcance_plot2 <- alcance_plot %>% 
+  select(-teste, -tipo) %>% 
+  group_by(momento, grupo, var2) %>% 
+  summarise(media = mean(valor, na.rm = T),
+            ep = se(valor))
+
+ggplot(alcance_plot2) +
+  geom_point(aes(x = momento, y = media, col = grupo),
+             position = position_dodge(width = 0.5)) + 
+  geom_errorbar(aes(x = momento, ymin = media-ep, ymax = media+ep, col = grupo), 
+                position = position_dodge(width = 0.5), width = 0.2) + 
+  facet_grid(cols = vars(var2), labeller = as_labeller(var_names)) +
+  labs(x = "", y = "Pontuação", col = "", title = "Teste de alcance") + 
+  theme_bw() + 
+  theme(legend.position = "bottom")
+
+ggsave("output/figuras/variaveis_cognicao/alcance_2var.png", width = 7, height = 4, dpi = 300)
+ggsave("output/figuras/variaveis_cognicao/alcance_2var.svg", width = 7, height = 4, dpi = 300)
+
+```
+
+```{r}
+# Salvar tabelas com as estatísticas
+write.xlsx("", file = "output/tabelas/variaveis_cognicao/alcance_est.xlsx", row.names = F)
+
+res_alcance_anterior %>% 
+  write.xlsx("output/tabelas/variaveis_cognicao/alcance_est.xlsx", sheetName = "anterior", append = T)
+
+res_alcance_lateral %>% 
+  write.xlsx("output/tabelas/variaveis_cognicao/alcance_est.xlsx", sheetName = "lateral", append = T)
+
+```
+
+## Checagem dos modelos
+
+### Anterior
+```{r, echo=FALSE, eval=cm}
+check_model(modelo_alcance_anterior)
+```
+### Lateral
+```{r, echo=FALSE, eval=cm}
+check_model(modelo_alcance_lateral)
+```
+
+# Foot Eight Walking
+
+```{r}
+# Selecionar os dados
+few_plot <- dados %>% 
+  select(contains("pre_few"), contains("pos_few"), grupo) %>% 
+  na.omit() %>% 
+  pivot_longer(-grupo, names_to = "variavel", values_to = "valor") %>% 
+  separate(variavel, into = c("momento", "tipo", "var2")) %>% 
+  mutate(momento = factor(momento, levels = c("pre", "pos"), labels = c("Pré", "Pós")))
+
+# Tempo
+few_plot %>% 
+  filter(var2 == "tempo") %>% 
+  select(-var2, -tipo) -> few_tempo
+
+modelo_few_tempo <- lm(log(valor+0.001) ~ momento*grupo, data = few_tempo)
+
+res_few_tempo <- tidy(anova(modelo_few_tempo)) %>% 
+  rename(F_statistic = statistic) %>% 
+  mutate_if(is.numeric, round, digits = 4)
+
+show_table(modelo_few_tempo, "'Foot Eight Walking - Tempo'")
+cat("\n\n")
+
+# Amplitude
+few_plot %>% 
+  filter(var2 == "amplitude") %>% 
+  select(-var2, -tipo) -> few_amplitude
+
+modelo_few_amplitude <- lm(log(valor+0.001) ~ momento*grupo, data = few_amplitude)
+
+res_few_amplitude <- tidy(anova(modelo_few_amplitude)) %>% 
+  rename(F_statistic = statistic) %>% 
+  mutate_if(is.numeric, round, digits = 4)
+
+show_table(modelo_few_amplitude, "'Foot Eight Walking - Amplitude'")
+cat("\n\n")
+```
+
+```{r}
+# Plotar as 5 subvariaveis do teste TMT A ----
+var_names <- c(
+  "tempo" = "Tempo",
+  "amplitude" = "Amplitude"
+)
+
+few_plot2 <- few_plot %>% 
+  select(-tipo) %>% 
+  group_by(momento, grupo, var2) %>% 
+  summarise(media = mean(valor, na.rm = T),
+            ep = se(valor))
+
+ggplot(few_plot2) +
+  geom_point(aes(x = momento, y = media, col = grupo),
+             position = position_dodge(width = 0.5)) + 
+  geom_errorbar(aes(x = momento, ymin = media-ep, ymax = media+ep, col = grupo), 
+                position = position_dodge(width = 0.5), width = 0.2) + 
+  facet_grid(cols = vars(var2), labeller = as_labeller(var_names)) +
+  labs(x = "", y = "Pontuação", col = "", title = "Foot Eight Walking") + 
+  theme_bw() + 
+  theme(legend.position = "bottom")
+
+ggsave("output/figuras/variaveis_cognicao/few_2var.png", width = 7, height = 4, dpi = 300)
+ggsave("output/figuras/variaveis_cognicao/few_2var.svg", width = 7, height = 4, dpi = 300)
+
+```
+
+```{r}
+# Salvar tabelas com as estatísticas
+write.xlsx("", file = "output/tabelas/variaveis_cognicao/few_est.xlsx", row.names = F)
+
+res_few_tempo %>% 
+  write.xlsx("output/tabelas/variaveis_cognicao/few_est.xlsx", sheetName = "tempo", append = T)
+
+res_few_amplitude %>% 
+  write.xlsx("output/tabelas/variaveis_cognicao/few_est.xlsx", sheetName = "amplitude", append = T)
+
+```
+
+## Checagem dos modelos
+
+### Tempo
+```{r, echo=FALSE, eval=cm}
+check_model(modelo_few_tempo)
+```
+### Amplitude
+```{r, echo=FALSE, eval=cm}
+check_model(modelo_few_amplitude)
+```

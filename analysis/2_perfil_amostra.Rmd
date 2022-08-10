@@ -1,0 +1,173 @@
+---
+title: "Perfil da amostra"
+author: "iaradsouza1"
+date: "2022-08-01"
+output: workflowr::wflow_html
+editor_options:
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = F, message = F)
+
+library(tidyverse)
+library(xlsx)
+library(scales)
+
+# Dados gerais de cada paciente
+meta <- read.csv("data/meta2.csv", sep = ";", header = T, dec = ",", encoding = "UTF-8")
+
+meta <- meta %>% 
+  mutate(grupo = factor(ifelse(grupo == "GC", "Controle", "Intervenção")),
+         sexo = ifelse(sexo == 0, "M", "F"))
+```
+
+# Variáveis gerais relacionadas aos indivíduos do estudo
+
+## Variáveis qualitativas
+
+Busca-se estudar as associações entre as variáveis qualitativas e os grupos de estudo. Foi escolhido o teste exato de Fisher, com simulação do p-valor. 
+
+As variáveis qualitativas testadas foram: 
+
+ - Sexo, 
+ - CDR, 
+ - Estado civil, 
+ - Etnia, 
+ - Indivíduo mora sozinho, 
+ - Indivíduo possui lesão ou fez cirurgia no joelho,
+ - Indivíduo usa óculos,
+ - Indivíduo utiliza auxílio para marcha
+ - Indivíduo realiza atividade física
+ 
+```{r}
+fisher.test(table(meta$sexo, meta$grupo), simulate.p.value = T, B = 10000)
+fisher.test(table(meta$cdr, meta$grupo), simulate.p.value = T, B = 10000)
+fisher.test(table(meta$estado_civil, meta$grupo), simulate.p.value = T, B = 10000)
+fisher.test(table(meta$etnia, meta$grupo), simulate.p.value = T, B = 10000)
+fisher.test(table(meta$mora_sozinho, meta$grupo), simulate.p.value = T, B = 10000)
+fisher.test(table(meta$lesao_cir_joelho_tornozelo, meta$grupo), simulate.p.value = T, B = 10000)
+fisher.test(table(meta$oculos, meta$grupo), simulate.p.value = T, B = 10000)
+fisher.test(table(meta$auxilio_marcha, meta$grupo), simulate.p.value = T, B = 10000)
+fisher.test(table(meta$atividade_fisica, meta$grupo), simulate.p.value = T, B = 10000)
+```
+
+Considerando um nível de significância de $\alpha=0,05$, os grupos de intervenção estão associados apenas ao sexo. Isto pode ser importante visto que há apenas 2 homens no grupo de intervenção. 
+
+```{r}
+table(meta$sexo, meta$grupo)
+```
+
+Salvar os resultados dos testes realizados em tabelas:
+```{r}
+# Salvar resultados das variáveis qualitativas
+
+#  Função para organizar o resultado do teste exato de Fisher
+organize_table_d <- function(df, var1, var2 = "grupo") {
+  
+  res <- as.data.frame(table(df[[var1]], df[[var2]])) %>% 
+    pivot_wider(names_from = Var2, values_from = Freq) %>% 
+    mutate(pvalue = round(fisher.test(table(df[[var1]], df[[var2]]), 
+                                      simulate.p.value = T, B = 10000)$p.value, 2),
+           variavel = var1) %>% 
+    relocate(variavel, .before = Var1)
+  res
+  
+}
+# Variáveis qualitativas
+var_d <- c("sexo", "cdr", "estado_civil", "etnia", "mora_sozinho", "lesao_cir_joelho_tornozelo",
+           "oculos", "auxilio_marcha", "atividade_fisica")
+
+write.xlsx("", file = "output/tabelas/caracteristica_amostra/tab_disc.xlsx", row.names = F)
+walk(var_d, ~ {
+  organize_table_d(meta, .x) %>% 
+    as.data.frame() %>% 
+    write.xlsx(file = "output/tabelas/caracteristica_amostra/tab_disc.xlsx", sheetName = .x, row.names = F, append = T)
+})
+```
+
+Os resultados estão salvos na tabela "**output/tabelas/caracteristica_amostra/tab_disc.xlsx**".
+
+## Variáveis quantitativas
+
+Busca-se estudar as associações entre as variáveis quantitativas e os grupos de estudo. Como algumas variáveis fogem à normalidade, usa-se o teste de Mann-Whitney para cada variável entre os diferentes grupos. 
+
+As variáveis testadas foram: 
+
+ - Idade (antes da intervenção),
+ - Anos de estudo,
+ - Nº de medicamentos (antes da intervenção),
+ - Nº de medicamentos (após a intervenção),
+ - Nº de quedas em 6 meses (antes da intervenção),
+ - Nº de quedas em 12 meses (antes da intervenção),
+ - Peso,
+ - Altura,
+ - Tamanho da cintura,
+ - Tamanho do quadril,
+ - IMC
+
+```{r}
+# Variáveis quantitativas
+var_c <- c("idade_pre", "anos_estudo", "n_medicamentos_pre", 
+           "n_medicamentos_pos", "quedas_6_meses_pre", "quedas_12_meses_pre",
+           "peso", "altura", "tamanho_cintura", "tamanho_quadril", "imc")
+
+# Função para realizar o teste de Mann-Whitney e organizar a tabela
+organize_table_c <- function(df, var1, var2 = "grupo") {
+  
+  se <- function(x) sqrt(var(x[!is.na(x)]) / length(x[!is.na(x)]))
+  
+  media <- round(tapply(df[[var1]], df[[var2]], mean, na.rm = T),2)
+  erro_p <- round(tapply(df[[var1]], df[[var2]], se),2)
+  
+  res <- bind_rows(media, erro_p) %>% 
+    mutate(
+      pvalue = wilcox.test(
+        split(meta[[var1]], meta[[var2]])[[1]],
+        split(meta[[var1]], meta[[var2]])[[2]])$p.value,
+           variavel = var1) %>% 
+    relocate(variavel, .before = "Controle")
+  
+  res
+  
+}
+
+walk(var_c, ~ {
+  print(
+    organize_table_c(meta, .x) %>%
+      as.data.frame() %>%
+      select(variavel, pvalue) %>% 
+      unique()
+  )
+})
+
+# Salvar tabelas
+write.xlsx("", file = "output/tabelas/caracteristica_amostra/tab_cont.xlsx", row.names = F)
+walk(var_c, ~ {
+  organize_table_c(meta, .x) %>% 
+    as.data.frame() %>% 
+    write.xlsx(file = "output/tabelas/caracteristica_amostra/tab_cont.xlsx", sheetName = .x, row.names = F, append = T)
+})
+```
+
+Há diferença entre as médias da variável "anos de estudo" entre os grupos de intervenção. As tabelas com as médias e os erros-padrão de cada grupo para cada variável testada estão salvas "**output/tabelas/caracteristica_amostra/tab_cont.xlsx**". 
+
+## Quantitativo de comorbidades
+
+```{r}
+com <- meta %>% 
+  separate_rows("comorbidades", sep = ";") %>% 
+  select(individuos, comorbidades) %>% 
+  mutate(comorbidades = ifelse(comorbidades == "x", NA, comorbidades)) %>% 
+  na.omit() %>% 
+  group_by(comorbidades) %>% 
+  summarise(porcentagem = round(n()/nrow(meta), 4)*100) %>% 
+  arrange(desc(porcentagem))
+
+com
+
+com %>% 
+  write.csv(file = "output/tabelas/caracteristica_amostra/comorbidades.csv",row.names = F, quote = F)
+```
+
+O resultado completo do quantitativo de comorbidades está em "**output/tabelas/caracteristica_amostra/comorbidades.csv**".

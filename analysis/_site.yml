@@ -1,0 +1,29 @@
+name: "projeto_wildja"
+output_dir: ../docs
+navbar:
+  title: "projeto_wildja"
+  left:
+  - text: Home
+    href: index.html
+  - text: "Preprocessamento"
+    href: 0_preprocess.html
+  - text: "Análise Biomecânica"
+    href: 1_analise_biomecanica2.html
+  - text: "Perfil dos indivíduos"
+    href: 2_perfil_amostra.html
+  - text: "Variáveis Cognição"
+    href: 3_variaveis_cognicao.html
+  - text: "Variáveis Cognição 2"
+    href: 4_variaveis_cognicao.html
+  - text: "Variáveis Cognição 3"
+    href: 5_variaveis_cognicao.html
+  - text: About
+    href: about.html
+  - text: License
+    href: license.html
+output:
+  workflowr::wflow_html:
+    toc: yes
+    toc_float: yes
+    theme: cosmo
+    highlight: textmate

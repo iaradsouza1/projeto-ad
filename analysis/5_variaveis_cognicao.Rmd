@@ -1,0 +1,387 @@
+---
+title: "5_variaveis_cognicao"
+author: "iaradsouza1"
+date: "2022-08-09"
+output: workflowr::wflow_html
+editor_options:
+  chunk_output_type: console
+---
+
+# Walking TMT
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = F, message = F)
+
+library(tidyverse)
+library(broom)
+library(xlsx)
+library(performance)
+library(gtsummary)
+
+# Dados
+wtmt <- read.csv("data/wtmt.csv", sep = ",", header = T, dec = ".")
+
+wtmt <- wtmt %>% 
+  mutate(nome = str_trim(nome), 
+         grupo = factor(ifelse(grupo == 1, "Intervenção", "Controle")))
+
+if(!dir.exists("output/tabelas/variaveis_cognicao/")) {
+  dir.create("output/tabelas/variaveis_cognicao/",recursive = T)
+}
+
+# Função para gerar tabela de resultados
+show_table <- function(modelo, label) {
+  
+  modelo %>% 
+  tbl_regression(
+    tidy_fun = broom::tidy, intercept = T, 
+    add_estimate_to_reference_rows = T,
+    pvalue_fun = ~ style_pvalue(.x, digits = 3)
+  ) %>% 
+  bold_labels() %>% 
+  bold_p(t = 0.10) %>% 
+  modify_header(
+    label = "**Variáveis**",
+    estimate = "**beta**",
+    ci = "**IC 95%**",
+    p.value = "**Valor p**"
+  ) %>% 
+  modify_footnote(everything() ~ NA, abbreviation = T) %>% 
+  italicize_levels() %>% 
+  modify_caption(paste0("Modelo para variável ", label))
+  
+}
+
+se <- function(x) sqrt(var(x[!is.na(x)]) / length(x[!is.na(x)]))
+
+# Checar modelos?
+cm <- TRUE
+```
+
+
+## Passarela 1
+
+```{r}
+# Selecionar os dados
+wtmt_plot <- wtmt %>% 
+  select(-nome) %>% 
+  na.omit() %>% 
+  pivot_longer(-grupo, names_to = "variavel", values_to = "valor") %>% 
+  separate(variavel, into = c("var1", "momento", "passarela", "num", "var2")) %>% 
+  mutate(momento = factor(momento, levels = c("pre", "pos"), labels = c("Pré", "Pós"))) %>% 
+  unite(col = "passarela", passarela, num, sep = "", remove = T) %>% 
+  select(-var1)
+
+# Tempo
+wtmt_plot %>% 
+  filter(var2 == "tempo", passarela == "passarela1") %>% 
+  select(-var2, -passarela) -> wtmt_tempo1
+
+modelo_wtmt_tempo1 <- lm(log(valor+0.001) ~ momento*grupo, data = wtmt_tempo1)
+
+res_wtmt_tempo1 <- tidy(anova(modelo_wtmt_tempo1)) %>% 
+  rename(F_statistic = statistic) %>% 
+  mutate_if(is.numeric, round, digits = 4)
+
+show_table(modelo_wtmt_tempo1, "'Walking TMT (Passarela 1) - Tempo'")
+cat("\n\n")
+
+# Acertos
+wtmt_plot %>% 
+  filter(var2 == "acertos", passarela == "passarela1") %>% 
+  select(-var2, -passarela) -> wtmt_acertos1
+
+modelo_wtmt_acertos1 <- lm(log(valor+0.001) ~ momento*grupo, data = wtmt_acertos1)
+
+res_wtmt_acertos1 <- tidy(anova(modelo_wtmt_acertos1)) %>% 
+  rename(F_statistic = statistic) %>% 
+  mutate_if(is.numeric, round, digits = 4)
+
+show_table(modelo_wtmt_acertos1, "'Walking TMT (Passarela 1) - Acertos'")
+cat("\n\n")
+
+
+# Tempo final
+wtmt_plot %>% 
+  filter(var2 == "tempofinal", passarela == "passarela1") %>% 
+  select(-var2, -passarela) -> wtmt_tempofinal1
+
+modelo_wtmt_tempofinal1 <- lm(log(valor+0.001) ~ momento*grupo, data = wtmt_tempofinal1)
+
+res_wtmt_tempofinal1 <- tidy(anova(modelo_wtmt_tempofinal1)) %>% 
+  rename(F_statistic = statistic) %>% 
+  mutate_if(is.numeric, round, digits = 4)
+
+show_table(modelo_wtmt_acertos1, "'Walking TMT (Passarela 1) - Tempo final'")
+cat("\n\n")
+```
+
+```{r}
+# Plotar as 3 subvariaveis do teste WTMT ----
+var_names <- c(
+  "tempo" = "Tempo",
+  "acertos" = "Acertos",
+  "tempofinal" = "Tempo final"
+)
+
+wtmt_plot2 <- wtmt_plot %>% 
+  filter(passarela == "passarela1", var2 != "erros") %>% 
+  select(-passarela) %>% 
+  group_by(momento, grupo, var2) %>% 
+  summarise(media = mean(valor, na.rm = T),
+            ep = se(valor))
+
+ggplot(wtmt_plot2) +
+  geom_point(aes(x = momento, y = media, col = grupo),
+             position = position_dodge(width = 0.5)) + 
+  geom_errorbar(aes(x = momento, ymin = media-ep, ymax = media+ep, col = grupo), 
+                position = position_dodge(width = 0.5), width = 0.2) + 
+  facet_grid(cols = vars(var2), labeller = as_labeller(var_names)) +
+  labs(x = "", y = "Pontuação", col = "", title = "Walking TMT (Passarela 1)") + 
+  theme_bw() + 
+  theme(legend.position = "bottom")
+
+ggsave("output/figuras/variaveis_cognicao/wtmt_passarela1.png", width = 7, height = 4, dpi = 300)
+ggsave("output/figuras/variaveis_cognicao/wtmt_passarela1.svg", width = 7, height = 4, dpi = 300)
+```
+
+```{r}
+# Salvar tabelas com as estatísticas
+write.xlsx("", file = "output/tabelas/variaveis_cognicao/wtmt_passarela1_est.xlsx", row.names = F)
+
+res_wtmt_tempo1 %>% 
+  write.xlsx("output/tabelas/variaveis_cognicao/wtmt_passarela1_est.xlsx", sheetName = "tempo", append = T)
+
+res_wtmt_acertos1 %>% 
+  write.xlsx("output/tabelas/variaveis_cognicao/wtmt_passarela1_est.xlsx", sheetName = "acertos", append = T)
+
+res_wtmt_tempofinal1 %>% 
+  write.xlsx("output/tabelas/variaveis_cognicao/wtmt_passarela1_est.xlsx", sheetName = "tempofinal", append = T)
+```
+
+### Checagem dos modelos
+
+Tempo
+```{r, echo=cm, eval=cm}
+check_model(modelo_wtmt_tempo1)
+```
+Acertos
+```{r, echo=cm, eval=cm}
+check_model(modelo_wtmt_acertos1)
+```
+Tempo final
+```{r, echo=cm, eval=cm}
+check_model(modelo_wtmt_tempofinal1)
+```
+
+
+## Passarela 2
+
+```{r}
+# Tempo
+wtmt_plot %>% 
+  filter(var2 == "tempo", passarela == "passarela2") %>% 
+  select(-var2, -passarela) -> wtmt_tempo2
+
+modelo_wtmt_tempo2 <- lm(log(valor+0.001) ~ momento*grupo, data = wtmt_tempo2)
+
+res_wtmt_tempo2 <- tidy(anova(modelo_wtmt_tempo2)) %>% 
+  rename(F_statistic = statistic) %>% 
+  mutate_if(is.numeric, round, digits = 4)
+
+show_table(modelo_wtmt_tempo2, "'Walking TMT (Passarela 2) - Tempo'")
+cat("\n\n")
+
+# Acertos
+wtmt_plot %>% 
+  filter(var2 == "acertos", passarela == "passarela2") %>% 
+  select(-var2, -passarela) -> wtmt_acertos2
+
+modelo_wtmt_acertos2 <- lm(log(valor+0.001) ~ momento*grupo, data = wtmt_acertos2)
+
+res_wtmt_acertos2 <- tidy(anova(modelo_wtmt_acertos2)) %>% 
+  rename(F_statistic = statistic) %>% 
+  mutate_if(is.numeric, round, digits = 4)
+
+show_table(modelo_wtmt_acertos2, "'Walking TMT (Passarela 2) - Acertos'")
+cat("\n\n")
+
+
+# Tempo final
+wtmt_plot %>% 
+  filter(var2 == "tempofinal", passarela == "passarela2") %>% 
+  select(-var2, -passarela) -> wtmt_tempofinal2
+
+modelo_wtmt_tempofinal2 <- lm(log(valor+0.001) ~ momento*grupo, data = wtmt_tempofinal2)
+
+res_wtmt_tempofinal2 <- tidy(anova(modelo_wtmt_tempofinal2)) %>% 
+  rename(F_statistic = statistic) %>% 
+  mutate_if(is.numeric, round, digits = 4)
+
+show_table(modelo_wtmt_acertos2, "'Walking TMT (Passarela 2) - Tempo final'")
+cat("\n\n")
+```
+
+```{r}
+# Plotar as 3 subvariaveis do teste WTMT ----
+var_names <- c(
+  "tempo" = "Tempo",
+  "acertos" = "Acertos",
+  "tempofinal" = "Tempo final"
+)
+
+wtmt_plot2 <- wtmt_plot %>% 
+  filter(passarela == "passarela2", var2 != "erros") %>% 
+  select(-passarela) %>% 
+  group_by(momento, grupo, var2) %>% 
+  summarise(media = mean(valor, na.rm = T),
+            ep = se(valor))
+
+ggplot(wtmt_plot2) +
+  geom_point(aes(x = momento, y = media, col = grupo),
+             position = position_dodge(width = 0.5)) + 
+  geom_errorbar(aes(x = momento, ymin = media-ep, ymax = media+ep, col = grupo), 
+                position = position_dodge(width = 0.5), width = 0.2) + 
+  facet_grid(cols = vars(var2), labeller = as_labeller(var_names)) +
+  labs(x = "", y = "Pontuação", col = "", title = "Walking TMT (Passarela 2)") + 
+  theme_bw() + 
+  theme(legend.position = "bottom")
+
+ggsave("output/figuras/variaveis_cognicao/wtmt_passarela2.png", width = 7, height = 4, dpi = 300)
+ggsave("output/figuras/variaveis_cognicao/wtmt_passarela2.svg", width = 7, height = 4, dpi = 300)
+```
+
+```{r}
+# Salvar tabelas com as estatísticas
+write.xlsx("", file = "output/tabelas/variaveis_cognicao/wtmt_passarela2_est.xlsx", row.names = F)
+
+res_wtmt_tempo2 %>% 
+  write.xlsx("output/tabelas/variaveis_cognicao/wtmt_passarela2_est.xlsx", sheetName = "tempo", append = T)
+
+res_wtmt_acertos2 %>% 
+  write.xlsx("output/tabelas/variaveis_cognicao/wtmt_passarela2_est.xlsx", sheetName = "acertos", append = T)
+
+res_wtmt_tempofinal2 %>% 
+  write.xlsx("output/tabelas/variaveis_cognicao/wtmt_passarela2_est.xlsx", sheetName = "tempofinal", append = T)
+```
+
+### Checagem dos modelos
+
+Tempo
+```{r, echo=cm, eval=cm}
+check_model(modelo_wtmt_tempo2)
+```
+Acertos
+```{r, echo=cm, eval=cm}
+check_model(modelo_wtmt_acertos2)
+```
+Tempo final
+```{r, echo=cm, eval=cm}
+check_model(modelo_wtmt_tempofinal2)
+```
+
+
+## Passarela 3
+
+```{r}
+# Tempo
+wtmt_plot %>% 
+  filter(var2 == "tempo", passarela == "passarela3") %>% 
+  select(-var2, -passarela) -> wtmt_tempo3
+
+modelo_wtmt_tempo3 <- lm(log(valor+0.001) ~ momento*grupo, data = wtmt_tempo3)
+
+res_wtmt_tempo3 <- tidy(anova(modelo_wtmt_tempo3)) %>% 
+  rename(F_statistic = statistic) %>% 
+  mutate_if(is.numeric, round, digits = 4)
+
+show_table(modelo_wtmt_tempo3, "'Walking TMT (Passarela 3) - Tempo'")
+cat("\n\n")
+
+# Acertos
+wtmt_plot %>% 
+  filter(var2 == "acertos", passarela == "passarela3") %>% 
+  select(-var2, -passarela) -> wtmt_acertos3
+
+modelo_wtmt_acertos3 <- lm(log(valor+0.001) ~ momento*grupo, data = wtmt_acertos3)
+
+res_wtmt_acertos3 <- tidy(anova(modelo_wtmt_acertos3)) %>% 
+  rename(F_statistic = statistic) %>% 
+  mutate_if(is.numeric, round, digits = 4)
+
+show_table(modelo_wtmt_acertos3, "'Walking TMT (Passarela 3) - Acertos'")
+cat("\n\n")
+
+
+# Tempo final
+wtmt_plot %>% 
+  filter(var2 == "tempofinal", passarela == "passarela3") %>% 
+  select(-var2, -passarela) -> wtmt_tempofinal3
+
+modelo_wtmt_tempofinal3 <- lm(log(valor+0.001) ~ momento*grupo, data = wtmt_tempofinal3)
+
+res_wtmt_tempofinal3 <- tidy(anova(modelo_wtmt_tempofinal3)) %>% 
+  rename(F_statistic = statistic) %>% 
+  mutate_if(is.numeric, round, digits = 4)
+
+show_table(modelo_wtmt_acertos3, "'Walking TMT (Passarela 3) - Tempo final'")
+cat("\n\n")
+```
+
+```{r}
+# Plotar as 3 subvariaveis do teste WTMT ----
+var_names <- c(
+  "tempo" = "Tempo",
+  "acertos" = "Acertos",
+  "tempofinal" = "Tempo final"
+)
+
+wtmt_plot2 <- wtmt_plot %>% 
+  filter(passarela == "passarela3", var2 != "erros") %>% 
+  select(-passarela) %>% 
+  group_by(momento, grupo, var2) %>% 
+  summarise(media = mean(valor, na.rm = T),
+            ep = se(valor))
+
+ggplot(wtmt_plot2) +
+  geom_point(aes(x = momento, y = media, col = grupo),
+             position = position_dodge(width = 0.5)) + 
+  geom_errorbar(aes(x = momento, ymin = media-ep, ymax = media+ep, col = grupo), 
+                position = position_dodge(width = 0.5), width = 0.2) + 
+  facet_grid(cols = vars(var2), labeller = as_labeller(var_names)) +
+  labs(x = "", y = "Pontuação", col = "", title = "Walking TMT (Passarela 3)") + 
+  theme_bw() + 
+  theme(legend.position = "bottom")
+
+ggsave("output/figuras/variaveis_cognicao/wtmt_passarela3.png", width = 7, height = 4, dpi = 300)
+ggsave("output/figuras/variaveis_cognicao/wtmt_passarela3.svg", width = 7, height = 4, dpi = 300)
+```
+
+```{r}
+# Salvar tabelas com as estatísticas
+write.xlsx("", file = "output/tabelas/variaveis_cognicao/wtmt_passarela3_est.xlsx", row.names = F)
+
+res_wtmt_tempo3 %>% 
+  write.xlsx("output/tabelas/variaveis_cognicao/wtmt_passarela3_est.xlsx", sheetName = "tempo", append = T)
+
+res_wtmt_acertos3 %>% 
+  write.xlsx("output/tabelas/variaveis_cognicao/wtmt_passarela3_est.xlsx", sheetName = "acertos", append = T)
+
+res_wtmt_tempofinal3 %>% 
+  write.xlsx("output/tabelas/variaveis_cognicao/wtmt_passarela3_est.xlsx", sheetName = "tempofinal", append = T)
+```
+
+### Checagem dos modelos
+
+Tempo
+```{r, echo=cm, eval=cm}
+check_model(modelo_wtmt_tempo3)
+```
+Acertos
+```{r, echo=cm, eval=cm}
+check_model(modelo_wtmt_acertos3)
+```
+Tempo final
+```{r, echo=cm, eval=cm}
+check_model(modelo_wtmt_tempofinal3)
+```
