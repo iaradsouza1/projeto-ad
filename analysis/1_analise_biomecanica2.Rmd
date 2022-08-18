@@ -41,10 +41,9 @@ load("output/biomecanica_processado.RData")
 resumo_f <- function(momento, meta, variavel, m) {
     
   momento %>% 
-    group_by(id, trat) %>% 
+    group_by(id, trat, grupo) %>% 
     summarise("media_{variavel}" := mean(.data[[variavel]], na.rm = T)) %>% 
     ungroup() %>% 
-    inner_join(meta %>% dplyr::select(id, grupo) %>% ungroup(), by = "id") %>% 
     unique() %>% 
     mutate(momento = m)->  df_resumo 
     
@@ -101,13 +100,13 @@ df_plot <- df_area %>%
   mutate(momento = factor(momento, levels = c("Pré", "Pós")))
 
 ggplot(df_plot) + 
-  geom_point(aes(x = trat, y = media, col = momento), 
+  geom_point(aes(x = trat, y = media, col = grupo), 
              position = position_dodge(width = 0.5)) +
-  geom_errorbar(aes(x = trat, ymin = media-desvio, ymax = media+desvio, col = momento), 
+  geom_errorbar(aes(x = trat, ymin = media-desvio, ymax = media+desvio, col = grupo), 
                 position = position_dodge(width = 0.5), width = 0.2) + 
   scale_x_discrete(limits = c("juntos", "semitandem", "tandem", "separados"), 
                    labels = c("Pés unidos", "Semitandem", "Tandem", "Pos. Estática")) + 
-  facet_wrap(~grupo) +
+  facet_wrap(~momento) +
   labs(x = "", y = "Área do CoP (mm²)", col = "") + 
   theme_bw() + 
   theme(legend.position = "bottom")
@@ -116,7 +115,7 @@ ggsave("output/figuras/biomecanica/area_cop.png", width = 7, height = 4, dpi = 3
 ggsave("output/figuras/biomecanica/area_cop.svg", width = 7, height = 4, dpi = 300)
 ```
 
-# Deslocamento da oscilação total (cm)
+# Deslocamento da oscilação total (mm)
 ```{r}
 # Obter medidas das médias
 df_disp <- obter_medias(m1, m2, meta_m1, meta_m2, "disp")
@@ -147,14 +146,14 @@ df_plot <- df_disp %>%
   mutate(momento = factor(momento, levels = c("Pré", "Pós")))
 
 ggplot(df_plot) + 
-  geom_point(aes(x = trat, y = media, col = momento), 
+  geom_point(aes(x = trat, y = media, col = grupo), 
              position = position_dodge(width = 0.5)) +
-  geom_errorbar(aes(x = trat, ymin = media-desvio, ymax = media+desvio, col = momento), 
+  geom_errorbar(aes(x = trat, ymin = media-desvio, ymax = media+desvio, col = grupo), 
                 position = position_dodge(width = 0.5), width = 0.2) + 
   scale_x_discrete(limits = c("juntos", "semitandem", "tandem", "separados"), 
                    labels = c("Pés unidos", "Semitandem", "Tandem", "Pos. Estática")) + 
-  facet_wrap(~grupo) +
-  labs(x = "", y = "Deslocamento (cm)", col = "") + 
+  facet_wrap(~momento) +
+  labs(x = "", y = "Deslocamento (mm)", col = "") + 
   theme_bw() +
   theme(legend.position = "bottom")
 
@@ -163,7 +162,7 @@ ggsave("output/figuras/biomecanica/deslocamento.svg", width = 7, height = 4, dpi
 ```
 
 
-# Amplitude medial-lateral (cm)
+# Amplitude medial-lateral (mm)
 ```{r}
 # Obter medidas das médias
 df_ampl_ml <- obter_medias(m1, m2, meta_m1, meta_m2, "ampl_ml")
@@ -186,7 +185,7 @@ summary(modelo, test = "Wilks")
 
 ## Comparações
 
-```{r, ampl_ml, fig.cap="\\label{fig:ampl_ml}Amplitude medial-lateral (cm). Cada ponto indica a média e as retas indicam o erro padrão."}
+```{r, ampl_ml, fig.cap="\\label{fig:ampl_ml}Amplitude medial-lateral (mm). Cada ponto indica a média e as retas indicam o erro padrão."}
 df_plot <- df_ampl_ml %>% 
   group_by(momento, grupo, trat) %>% 
   summarise(media = mean(media_ampl_ml, na.rm = T), desvio = se(media_ampl_ml)) %>% 
@@ -194,19 +193,19 @@ df_plot <- df_ampl_ml %>%
   mutate(momento = factor(momento, levels = c("Pré", "Pós")))
 
 ggplot(df_plot) + 
-  geom_point(aes(x = trat, y = media, col = momento), 
+  geom_point(aes(x = trat, y = media, col = grupo), 
              position = position_dodge(width = 0.5)) +
-  geom_errorbar(aes(x = trat, ymin = media-desvio, ymax = media+desvio, col = momento), 
+  geom_errorbar(aes(x = trat, ymin = media-desvio, ymax = media+desvio, col = grupo), 
                 position = position_dodge(width = 0.5), width = 0.2) + 
   scale_x_discrete(limits = c("juntos", "semitandem", "tandem", "separados"), 
                    labels = c("Pés unidos", "Semitandem", "Tandem", "Pos. Estática")) + 
-  facet_wrap(~grupo) +
-  labs(x = "", y = "Amplitude ML (cm)", col = "") + 
+  facet_wrap(~momento) +
+  labs(x = "", y = "Amplitude ML (mm)", col = "") + 
   theme_bw() + 
   theme(legend.position = "bottom")
 ```
 
-# Amplitude ântero-posterior (cm)
+# Amplitude ântero-posterior (mm)
 ```{r}
 # Obter medidas das médias
 df_ampl_ap <- obter_medias(m1, m2, meta_m1, meta_m2, "ampl_ap")
@@ -229,7 +228,7 @@ summary(modelo, test = "Wilks")
 
 ## Comparações
 
-```{r, ampl_ap, fig.cap="\\label{fig:ampl_ml}Amplitude ântero-posterior (cm). Cada ponto indica a média e as retas indicam o erro padrão."}
+```{r, ampl_ap, fig.cap="\\label{fig:ampl_ml}Amplitude ântero-posterior (mm). Cada ponto indica a média e as retas indicam o erro padrão."}
 df_plot <- df_ampl_ap %>% 
   group_by(momento, grupo, trat) %>% 
   summarise(media = mean(media_ampl_ap, na.rm = T), desvio = se(media_ampl_ap)) %>% 
@@ -237,14 +236,14 @@ df_plot <- df_ampl_ap %>%
   mutate(momento = factor(momento, levels = c("Pré", "Pós")))
 
 ggplot(df_plot) + 
-  geom_point(aes(x = trat, y = media, col = momento), 
+  geom_point(aes(x = trat, y = media, col = grupo), 
              position = position_dodge(width = 0.5)) +
-  geom_errorbar(aes(x = trat, ymin = media-desvio, ymax = media+desvio, col = momento), 
+  geom_errorbar(aes(x = trat, ymin = media-desvio, ymax = media+desvio, col = grupo), 
                 position = position_dodge(width = 0.5), width = 0.2) + 
   scale_x_discrete(limits = c("juntos", "semitandem", "tandem", "separados"), 
                    labels = c("Pés unidos", "Semitandem", "Tandem", "Pos. Estática")) + 
-  facet_wrap(~grupo) +
-  labs(x = "", y = "Amplitude AP (cm)", col = "") + 
+  facet_wrap(~momento) +
+  labs(x = "", y = "Amplitude AP (mm)", col = "") + 
   theme_bw() +
   theme(legend.position = "bottom")
 
@@ -276,7 +275,7 @@ summary(modelo, test = "Wilks")
 
 ## Comparações
 
-```{r, vel_media_total, fig.cap="\\label{fig:vel_media_total}Velocidade média total (cm/s). Cada ponto indica a média e as retas indicam o erro padrão."}
+```{r, vel_media_total, fig.cap="\\label{fig:vel_media_total}Velocidade média total (mm/s). Cada ponto indica a média e as retas indicam o erro padrão."}
 df_plot <- df_vel_media_total %>% 
   group_by(momento, grupo, trat) %>% 
   summarise(media = mean(media_vel_media_total, na.rm = T), desvio = se(media_vel_media_total)) %>% 
@@ -284,19 +283,19 @@ df_plot <- df_vel_media_total %>%
   mutate(momento = factor(momento, levels = c("Pré", "Pós")))
 
 ggplot(df_plot) + 
-  geom_point(aes(x = trat, y = media, col = momento), 
+  geom_point(aes(x = trat, y = media, col = grupo), 
              position = position_dodge(width = 0.5)) +
-  geom_errorbar(aes(x = trat, ymin = media-desvio, ymax = media+desvio, col = momento), 
+  geom_errorbar(aes(x = trat, ymin = media-desvio, ymax = media+desvio, col = grupo), 
                 position = position_dodge(width = 0.5), width = 0.2) + 
   scale_x_discrete(limits = c("juntos", "semitandem", "tandem", "separados"), 
                    labels = c("Pés unidos", "Semitandem", "Tandem", "Pos. Estática")) + 
-  facet_wrap(~grupo) +
-  labs(x = "", y = "Velocidade média total", col = "") + 
+  facet_wrap(~momento) +
+  labs(x = "", y = "Velocidade média total (mm/s)", col = "") + 
   theme_bw() +
   theme(legend.position = "bottom")
 ```
 
-# Root mean square (RMS) medial-lateral 
+# Root mean square (RMS) medial-lateral (mm)
 ```{r}
 # Obter medidas das médias
 df_rms_ml <- obter_medias(m1, m2, meta_m1, meta_m2, "rms_ml")
@@ -319,7 +318,7 @@ summary(modelo, test = "Wilks")
 
 ## Comparações
 
-```{r, rms_ml, fig.cap="\\label{fig:rms_ml}Root mean square (RMS) medial-lateral (cm/s). Cada ponto indica a média e as retas indicam o erro padrão."}
+```{r, rms_ml, fig.cap="\\label{fig:rms_ml}Root mean square (RMS) medial-lateral (mm). Cada ponto indica a média e as retas indicam o erro padrão."}
 df_plot <- df_rms_ml %>% 
   group_by(momento, grupo, trat) %>% 
   summarise(media = mean(media_rms_ml, na.rm = T), desvio = se(media_rms_ml)) %>% 
@@ -327,14 +326,14 @@ df_plot <- df_rms_ml %>%
   mutate(momento = factor(momento, levels = c("Pré", "Pós")))
 
 ggplot(df_plot) + 
-  geom_point(aes(x = trat, y = media, col = momento), 
+  geom_point(aes(x = trat, y = media, col = grupo), 
              position = position_dodge(width = 0.5)) +
-  geom_errorbar(aes(x = trat, ymin = media-desvio, ymax = media+desvio, col = momento), 
+  geom_errorbar(aes(x = trat, ymin = media-desvio, ymax = media+desvio, col = grupo), 
                 position = position_dodge(width = 0.5), width = 0.2) + 
   scale_x_discrete(limits = c("juntos", "semitandem", "tandem", "separados"), 
                    labels = c("Pés unidos", "Semitandem", "Tandem", "Pos. Estática")) + 
-  facet_wrap(~grupo) +
-  labs(x = "", y = "RMS ML", col = "") + 
+  facet_wrap(~momento) +
+  labs(x = "", y = "RMS ML (mm)", col = "") + 
   theme_bw() +
   theme(legend.position = "bottom")
 
@@ -342,7 +341,7 @@ ggsave("output/figuras/biomecanica/rms_ml.png", width = 7, height = 4, dpi = 300
 ggsave("output/figuras/biomecanica/rms_ml.svg", width = 7, height = 4, dpi = 300)
 ```
 
-# Root mean square (RMS) ântero-posterior 
+# Root mean square (RMS) ântero-posterior (mm)
 ```{r}
 # Obter medidas das médias
 df_rms_ap <- obter_medias(m1, m2, meta_m1, meta_m2, "rms_ap")
@@ -365,7 +364,7 @@ summary(modelo, test = "Wilks")
 
 ## Comparações
 
-```{r, rms_ap, fig.cap="\\label{fig:rms_ap}Root mean square (RMS) ântero-posterior  (cm/s). Cada ponto indica a média e as retas indicam o erro padrão."}
+```{r, rms_ap, fig.cap="\\label{fig:rms_ap}Root mean square (RMS) ântero-posterior  (mm). Cada ponto indica a média e as retas indicam o erro padrão."}
 df_plot <- df_rms_ap %>% 
   group_by(momento, grupo, trat) %>% 
   summarise(media = mean(media_rms_ap, na.rm = T), desvio = se(media_rms_ap)) %>% 
@@ -373,14 +372,14 @@ df_plot <- df_rms_ap %>%
   mutate(momento = factor(momento, levels = c("Pré", "Pós")))
 
 ggplot(df_plot) + 
-  geom_point(aes(x = trat, y = media, col = momento), 
+  geom_point(aes(x = trat, y = media, col = grupo), 
              position = position_dodge(width = 0.5)) +
-  geom_errorbar(aes(x = trat, ymin = media-desvio, ymax = media+desvio, col = momento), 
+  geom_errorbar(aes(x = trat, ymin = media-desvio, ymax = media+desvio, col = grupo), 
                 position = position_dodge(width = 0.5), width = 0.2) + 
   scale_x_discrete(limits = c("juntos", "semitandem", "tandem", "separados"), 
                    labels = c("Pés unidos", "Semitandem", "Tandem", "Pos. Estática")) + 
-  facet_wrap(~grupo) +
-  labs(x = "", y = "RMS AP", col = "") + 
+  facet_wrap(~momento) +
+  labs(x = "", y = "RMS AP (mm)", col = "") + 
   theme_bw() +
   theme(legend.position = "bottom")
 

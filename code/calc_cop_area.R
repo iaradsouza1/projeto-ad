@@ -15,6 +15,14 @@ filter_cop <- function(file_name, samp = 1000, probs = c(0.25, 0.75)) {
   df <- data.table::fread(file = file_name)
   colnames(df) <- cols
   
+  # Zerar medidas de CoP
+  filtro_zero_CoPx <- mean(df$CoPx[1:100])
+  filtro_zero_CoPy <- mean(df$CoPy[1:100])
+  filtro_zero_Fz <- mean(df$Fz[1:100])
+  
+  df$CoPx <- df$CoPx - filtro_zero_CoPx 
+  df$CoPy <- df$CoPy - filtro_zero_CoPy
+  
   # Remove center of pressure signal tendency and transform to milimeters
   # Remover a tendência no sinal do centro de pressão (CoP) e transformar em milímetros
   cop_ml <- gsignal::detrend(df$CoPy)*1000
