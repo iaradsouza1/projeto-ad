@@ -1,39 +1,39 @@
-individuos	grupo	cdr	idade_pre	idade_pos	sexo	anos_estudo	etnia	estado_civil	mora_sozinho	n_medicamentos_pre	n_medicamentos_pos	quedas_6_meses_pre 	quedas_12_meses_pre	quedas_6_meses_pos	quedas_12_meses_pos	comorbidades	lesao_cir_joelho_tornozelo	oculos	auxilio_marcha	atividade_fisica	peso	altura	imc	tamanho_cintura	tamanho_quadril					
-Affonso Benedito Tozzi	GC	1	82	83	0	4	0	3	0	3	3	3	10			Catarata	Neoplasia de próstata	0	1	1	0	66,2	1,52	28,65	103	102				
-Alcides Minimel	GC	1	80	81	0	4	0	1	0	4	4	0	0			Diabetes	Alzheimer	Depressão	0	0	0	1	63	1,75	20,57	92	95			
-Antonio Roberto de Luca	GC	1	69	69	0	8	0	1	0	2	3	0	0			x	0	1	0	0	71,7	1,69	25,1	95	99					
-Benta Lins Andrade	GC	1	72	72	1	8	0	1	0	7	7	1	1			Diabetes	Osteoporose	Hipertensão	0	1	0	0	52,2	1,47	24,16	91	90			
-Delci Amélia Leonardo Gonçalves	GC	1	73	74	1	5	2	1	0	4	5	0	0			Hipertensão	0	1	0	1	58	1,51	25,44	88	98,5					
-Harume Otsuka	GC	1	77	77	1	14	3	1	0	8	8	0	0			Hipertensão	Diabetes	Apneia	1	1	0	1	45,2	1,49	20,36	74	90			
-Hermínia Buffo Borduchi	GC	2	76	77	1	4	0	1	0	7	7	0	0			x	0	1	0	1	62,5	1,52	27,05	102	103,5					
-Lourdes de Souza Antunes Lopes	GC	1	81	81	1	4	0	1	0	7	7	0	0			Hipertensão	Artrose 	0	1	1	0	71,3	1,58	28,56	107	113				
-Maria José Pereira de Oliveira Ferreira 	GC	1	84	84	1	15	0	1	0	5	4	0	0			x	0	1	0	1	48	1,55	19,98	78	89					
-Maria Lucia Constantino Pineli	GC	2	76	76	1	3	0	1	0	4	4	1	0			Hipertiroidismo	Hipertensão	0	1	0	0	56	1,51	24,34	81	93				
-Miguel Gregorio Kovacs	GC	1	82	82	0	16	0	3	0	5	5	1	1			Tireóide	Hipertensão	0	0	0	0	71,5	1,63	26,91	97	93				
-Nagib Sabe	GC	2	88	88	0	20	0	3	0	9	14	0	0			Hipertensão	Diabetes	Neoplasia de mama	0	1	1	1	91,5	1,7	31,66	109	110			
-Nailza Isabel de Brito Paz	GC	2	73	74	1	4	0	1	0	14	14	12	24			Hipertensão	Diabetes	Hipercolesterolemia	Hipotireoidismo	Triglicérides	Úlcera estomacal	0	1	0	0	95	1,72	32,11	102	103
-Nelson Lopes	GC	2	67	68	0	4	0	1	0	2	2	0	0			x	0	1	0	0	67	1,58	26,84	97	93					
-Paschoal Geraldo Gibelato	GC	1	79	79	0	3	0	1	0	3	3	0	0			x	0	1	0	0	72	1,66	26,13	98	91					
-Primiano Francisco	GC	2	81	81	0	7	0	1	0	4	4	1	0			x	0	0	0	0	72,2	1,66	26,2	102	102					
-Regina Rosalem Gomes 	GC	2	88	88	1	1	0	3	0	5	6	0	0			Hipertensão	0	1	0	0	74,5	1,51	32,67	101	113					
-Vicente Paula Martins	GC	2	81	81	0	8	0	1	0	1	1	0	0			x	0	1	0	1	78,5	1,63	29,55	102	101					
-Wolfgang Rodolfo Falland	GC	2	81	81	0	15	0	3	0	6	6	0	0			Hipertensão	Pré-diabetes	1	1	0	1	95,2	1,83	28,43	116	114				
-Adelaide Hirano	GI	1	84	84	1	4	3	3	0	5	5	0	0			Hipertensão	0	1	0	0	52,1	1,5	23,16	84	95					
-Aliete de Souza Fiori	GI	2	77	78	1	2	0	1	0	3	3	0	0			Hipertensão	Hérnia de disco	0	1	0	0	61,5	1,69	21,53	84	100				
-Aparecida Dias Botelho	GI	2	89	90	1	2	0	3	0	7	7	0	0			Hipertensão	0	0	0	0	65	1,53	27,77	95	93					
-Célia Borges de Oliveira Gualtieri	GI	1	85	86	1	16	0	3	1	7	7	0	0			Hipotiroidismo	Trombose	0	0	0	0	58	1,44	27,97	94	81				
-Célia Maria da Silva Cavéquia	GI	1	74	75	1	4	0	1	0	4	4	3	3			Hipertensão	0	1	0	0	76,5	1,6	29,88	96	111					
-Dulcinéa Jacynto Pedrolongo	GI	2	82	83	1	4	0	3	0	8	8	1	2			Hipertensão	0	0	0	0	44	1,31	25,64	87	90					
-Inéa Teixeira Machado	GI	2	87	87	1	11	0	1	0	5	5	0	0			Hipertensão	Refluxo gastroesofágico	0	1	0	1	75	1,56	30,61	111	100				
-José Alvez Pereira	GI	2	80	81	0	4	0	2	0	9	9	5	8			x	0	1	0	0	73	1,67	26,18	94	98					
-Juventina Aparecida de Souza	GI	1	86	86	1	2	0	0	0	8	8	2	2			Doença macular	Incontinência Urinária	0	1	0	0	45	1,45	21,17	89	86				
-Maria Aparecida Luz Luciano	GI	2	79	79	1	4	0	1	0	9	9	0	0			Diabetes	Hipertensão	Hipercolesterolemia 	0	1	0	0	55,5	1,51	24,34	82	97			
-Maria de Fátima Caputo	GI	1	66	66	1	8	0	2	1	11	11	0	1			Hipertensão	Artrite	Artrose	0	1	0	1	68,6	1,58	27,48	100	104			
-Maria Júlia Bonani Javarotti	GI	1	75	75	1	4	0	1	0	6	6	0	1			Arterite	Hipertensão	0	1	0	0	75	1,58	30,04	109	110				
-Nadir Ananias 	GI	1	75	76	0	4	0	1	0	5	5	4	0			Hipertensão	0	1	0	0	79	1,62	30,1	110	105					
-Nair Tirapelli Salomão	GI	2	78	79	1	4	0	1	0	6	6	0	0			x	0	1	0	1	56,2	1,48	25,66	94,5	96					
-Palmira de Souza Ananias	GI	1	80	80	1	0	2	1	0	1	1	0	0			Hipertensão	1	0	0	0	74	1,56	30,41	90	110					
-Sônia Marli Bonicelli Frigor 	GI	1	72	72	1	4	0	3	0	3	3	0	0			x	0	0	0	0	67	1,48	30,59	106	108					
-Mercedes Romão Pires	GI	2	89	89	1	0	0	3	1	1		1	0			Hipertensão	Artrose 	0	0	0	0	52,1	1,5	23,2	84	95				
-Odete Aparecida Candelora Mozaner	GI	1	77	77	1	4	0	1	0	7		0	0			Hipertensão	0	1	0	0	72,2	1,66	26,2	102	102					
-Hilda Borg Rodrigues	GI	2	91	91	1	4	0	3	0	6		3	5			Artrose	0	1	0	0	52,1	1,53	22,21	92	86,5					
+individuos;grupo;cdr;idade_pre;idade_pos;sexo;anos_estudo;etnia;estado_civil;mora_sozinho;n_medicamentos_pre;n_medicamentos_pos;quedas_6_meses_pre ;quedas_12_meses_pre;quedas_6_meses_pos;quedas_12_meses_pos;comorbidades;lesao_cir_joelho_tornozelo;oculos;auxilio_marcha;atividade_fisica;peso;altura;imc;tamanho_cintura;tamanho_quadril
+Affonso Benedito Tozzi;GC;1;82;83;0;4;0;3;0;3;3;3;10;;;"Catarata;Neoplasia de próstata";0;1;1;0;66,2;1,52;28,65;103;102
+Alcides Minimel;GC;1;80;81;0;4;0;1;0;4;4;0;0;;;"Diabetes;Alzheimer;Depressão";0;0;0;1;63;1,75;20,57;92;95
+Antonio Roberto de Luca;GC;1;69;69;0;8;0;1;0;2;3;0;0;;;x;0;1;0;0;71,7;1,69;25,1;95;99
+Benta Lins Andrade;GC;1;72;72;1;8;0;1;0;7;7;1;1;;;"Diabetes;Osteoporose;Hipertensão";0;1;0;0;52,2;1,47;24,16;91;90
+Delci Amélia Leonardo Gonçalves;GC;1;73;74;1;5;2;1;0;4;5;0;0;;;Hipertensão;0;1;0;1;58;1,51;25,44;88;98,5
+Harume Otsuka;GC;1;77;77;1;14;3;1;0;8;8;0;0;;;"Hipertensão;Diabetes;Apneia";1;1;0;1;45,2;1,49;20,36;74;90
+Hermínia Buffo Borduchi;GC;2;76;77;1;4;0;1;0;7;7;0;0;;;x;0;1;0;1;62,5;1,52;27,05;102;103,5
+Lourdes de Souza Antunes Lopes;GC;1;81;81;1;4;0;1;0;7;7;0;0;;;"Hipertensão;Artrose ";0;1;1;0;71,3;1,58;28,56;107;113
+Maria José Pereira de Oliveira Ferreira ;GC;1;84;84;1;15;0;1;0;5;4;0;0;;;x;0;1;0;1;48;1,55;19,98;78;89
+Maria Lucia Constantino Pineli;GC;2;76;76;1;3;0;1;0;4;4;1;0;;;"Hipertiroidismo;Hipertensão";0;1;0;0;56;1,51;24,34;81;93
+Miguel Gregorio Kovacs;GC;1;82;82;0;16;0;3;0;5;5;1;1;;;"Tireóide;Hipertensão";0;0;0;0;71,5;1,63;26,91;97;93
+Nagib Sabe;GC;2;88;88;0;20;0;3;0;9;14;0;0;;;"Hipertensão;Diabetes;Neoplasia de mama";0;1;1;1;91,5;1,7;31,66;109;110
+Nailza Isabel de Brito Paz;GC;2;73;74;1;4;0;1;0;14;14;12;24;;;"Hipertensão;Diabetes;Hipercolesterolemia;Hipotireoidismo;Triglicérides;Úlcera estomacal";0;1;0;0;95;1,72;32,11;102;103
+Nelson Lopes;GC;2;67;68;0;4;0;1;0;2;2;0;0;;;x;0;1;0;0;67;1,58;26,84;97;93
+Paschoal Geraldo Gibelato;GC;1;79;79;0;3;0;1;0;3;3;0;0;;;x;0;1;0;0;72;1,66;26,13;98;91
+Primiano Francisco ;GC;2;81;81;0;7;0;1;0;4;4;1;0;;;x;0;0;0;0;72,2;1,66;26,2;102;102
+Regina Rosalem Gomes ;GC;2;88;88;1;1;0;3;0;5;6;0;0;;;Hipertensão;0;1;0;0;74,5;1,51;32,67;101;113
+Vicente Paula Martins;GC;2;81;81;0;8;0;1;0;1;1;0;0;;;x;0;1;0;1;78,5;1,63;29,55;102;101
+Wolfgang Rodolfo Falland;GC;2;81;81;0;15;0;3;0;6;6;0;0;;;"Hipertensão;Pré-diabetes";1;1;0;1;95,2;1,83;28,43;116;114
+Adelaide Hirano;GI;1;84;84;1;4;3;3;0;5;5;0;0;;;Hipertensão;0;1;0;0;52,1;1,5;23,16;84;95
+Aliete de Souza Fiori;GI;2;77;78;1;2;0;1;0;3;3;0;0;;;"Hipertensão;Hérnia de disco";0;1;0;0;61,5;1,69;21,53;84;100
+Aparecida Dias Botelho;GI;2;89;90;1;2;0;3;0;7;7;0;0;;;Hipertensão;0;0;0;0;65;1,53;27,77;95;93
+Célia Borges de Oliveira Gualtieri;GI;1;85;86;1;16;0;3;1;7;7;0;0;;;"Hipotiroidismo;Trombose";0;0;0;0;58;1,44;27,97;94;81
+Célia Maria da Silva Cavéquia;GI;1;74;75;1;4;0;1;0;4;4;3;3;;;Hipertensão;0;1;0;0;76,5;1,6;29,88;96;111
+Dulcinéa Jacynto Pedrolongo;GI;2;82;83;1;4;0;3;0;8;8;1;2;;;Hipertensão;0;0;0;0;44;1,31;25,64;87;90
+Inéa Teixeira Machado;GI;2;87;87;1;11;0;1;0;5;5;0;0;;;"Hipertensão;Refluxo gastroesofágico";0;1;0;1;75;1,56;30,61;111;100
+José Alvez Pereira;GI;2;80;81;0;4;0;2;0;9;9;5;8;;;x;0;1;0;0;73;1,67;26,18;94;98
+Juventina Aparecida de Souza ;GI;1;86;86;1;2;0;0;0;8;8;2;2;;;"Doença macular;Incontinência Urinária";0;1;0;0;45;1,45;21,17;89;86
+Maria Aparecida Luz Luciano;GI;2;79;79;1;4;0;1;0;9;9;0;0;;;"Diabetes;Hipertensão;Hipercolesterolemia ";0;1;0;0;55,5;1,51;24,34;82;97
+Maria de Fátima Caputo;GI;1;66;66;1;8;0;2;1;11;11;0;1;;;"Hipertensão;Artrite;Artrose";0;1;0;1;68,6;1,58;27,48;100;104
+Maria Júlia Bonani Javarotti;GI;1;75;75;1;4;0;1;0;6;6;0;1;;;"Arterite;Hipertensão";0;1;0;0;75;1,58;30,04;109;110
+Nadir Ananias ;GI;1;75;76;0;4;0;1;0;5;5;4;0;;;Hipertensão;0;1;0;0;79;1,62;30,1;110;105
+Nair Tirapelli Salomão;GI;2;78;79;1;4;0;1;0;6;6;0;0;;;x;0;1;0;1;56,2;1,48;25,66;94,5;96
+Palmira de Souza Ananias;GI;1;80;80;1;0;2;1;0;1;1;0;0;;;Hipertensão;1;0;0;0;74;1,56;30,41;90;110
+Sônia Marli Bonicelli Frigor ;GI;1;72;72;1;4;0;3;0;3;3;0;0;;;x;0;0;0;0;67;1,48;30,59;106;108
+Mercedes Romão Pires;GI;2;89;89;1;0;0;3;1;1;;1;0;;;"Hipertensão;Artrose ";0;0;0;0;52,1;1,5;23,2;84;95
+Odete Aparecida Candelora Mozaner;GI;1;77;77;1;4;0;1;0;7;;0;0;;;Hipertensão;0;1;0;0;72,2;1,66;26,2;102;102
+Hilda Borg Rodrigues;GI;2;91;91;1;4;0;3;0;6;;3;5;;;Artrose;0;1;0;0;52,1;1,53;22,21;92;86,5
