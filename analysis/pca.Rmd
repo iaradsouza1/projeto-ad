@@ -1,0 +1,515 @@
+---
+title: "Exclusão de outliers com PCA"
+author: "Iara Souza e Clovis F Reis"
+date: "2022-08-12"
+output: workflowr::wflow_html
+editor_options:
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+
+# Calcular as métricas - DADOS ESTÁTICOS ----------------------------------
+rm(list = ls())
+if(!is.null(dev.list())) dev.off()
+knitr::opts_chunk$set(warning = FALSE, message = FALSE) 
+rm(list = ls())
+
+library(tidyverse)
+library(factoextra)
+library(FactoMineR)
+library(corrplot)
+library(ggplot2)
+library(gridExtra)
+library(grid)
+library(ggforce)
+library(ggrepel)
+
+options(ggrepel.max.overlaps = Inf)
+
+source('./funcoes.R')
+theme_set(theme_bw())
+
+load("../output/biomecanica_processado.RData")
+
+```
+
+# Considerações Gerais
+A PCA (Principal Components Analysis) é um procedimento que visa diminuir a dimensionalidade de um problema complexo, agrupando vários componentes iniciais em um único modelo simplificado, capaz de explicar a maior parte da variância dos dados originais. 
+
+Também permite uma análise preliminar dos dados, onde é possível identificar eventuais outliers. O gráfico da PCA normalmente correlaciona as duas componentes principais, e nele os outliers podem ser facilmente identificáveis como pontos no gráfico bastante distante dos demais. Isso indica que a variância nesses pontos é determinada por outros fatores que não sejam as principais componentes.
+
+Da mesma forma, é possível identificar o comportamento de variáveis nominais em função dos componentes numéricos dos dados. Se uma variável nominal influencia na variância, os pontos relativos às observações desta variável tenderão a estar agrupados em clusteres.
+
+Para efeito dos gráficos abaixo será utilizada a seguinte convenção:
+
+* juntos - j
+
+* semitandem - st
+
+* separados - s
+
+* tandem - t
+
+# Normalização
+
+Como medida preliminar, foi realizada a normalização dos dados a fim de homogeinizar a variância entre as diversas variáveis. Para tanto, todas as unidades de medida foram transformadas em função do z-score, ou seja, todas as unidades são computadas em termos de número de desvios padrão a partir da média de cada variável.
+
+# Análise dos dados
+
+## PCA utilizando a média das replicatas
+
+Foi realizada a PCA tomando como componentes as média dos resultados das replicatas de cada paciente.
+
+```{r principal}
+#inicio ----
+#PCA em M1
+pca <- list()
+gPca <- list()
+gEv <- list()
+gCr <- list()
+
+#PCA em M1
+ret<-trataMedia(m1)
+gPca[[1]] <- ret[[1]]
+pca[[1]] <- ret[[2]]
+
+#PCA em M2
+ret<-trataMedia(m2)
+gPca[[2]]<-ret[[1]]
+pca[[2]]<-ret[[2]]
+
+gEv[[1]] <- fviz_eig(pca[[1]], addlabels=TRUE)
+gEv[[2]] <- fviz_eig(pca[[2]], addlabels=TRUE)
+
+```
+```{r , cpnM1, fig.cap="\\label{fig:cpnM1}Composição das componentes principais em M1."}
+variaveis=get_pca_var(pca[[1]])
+gCr[[1]] <- corrplot(variaveis$contrib, is.corr=FALSE)
+```
+```{r , cpnM2, fig.cap="\\label{fig:cpnM2}Composição das componentes principais em M2."}
+variaveis=get_pca_var(pca[[2]])
+gCr[[2]] <- corrplot(variaveis$contrib, is.corr=FALSE)
+#usar para ver maiores detalhes das componentes
+# variaveis$coord
+# variaveis$contrib
+# variaveis$cos2
+```
+
+### Participação das componentes na explicação da variância
+
+```{r , pM1, fig.cap="\\label{fig:pM1}Participação de cada componente na explicação da variância."}
+grid.arrange(grobs = gEv[1:2], ncol=2,top="Participação das componentes em M1 e M2")
+```
+
+### PCA das usando as médias em M1 e M2
+
+```{r , pcaM1, fig.cap="\\label{fig:pcaM1M2}Gráfico das duas principais componentes em M1."}
+
+gPca[[1]]+
+  geom_ellipse(aes(x0 = -1.75, y0 = -0.25, a = 4.4, b = 1.85, angle = 0), 
+                       color = 'green')
+```
+
+Na PCA de M1, podemos notar que:
+
+* Não há uma clusterização clara entre Controle e Intervenção neste primeiro momento, o que é esperado, já que, em tese, ambos os grupos devem apresentar condição similar;
+
+* Há um pequeno agrupamento de amostras, demarcada pela elipse verde, que apresentam resultados similares; 
+
+* Os pacientes Ind2, Ind6, Ind9, Ind11, Ind13, Ind14, Ind16, Ind17, Ind22 e Ind23 apresentam uma variância nos dados não prevista pelas principais componente, sendo candidatos a uma eventual remoção do dataset.
+
+```{r , pcaM2, fig.cap="\\label{fig:pcaM1M2}Gráfico das duas principais componentes em M2."}
+gPca[[2]]
+```
+
+Já na PCA de M2, podemos notar que ainda não há uma clusterização clara entre Controle e Intervenção. Isso contraria o esperado, já que, após o tratamento deveria haver uma separação mais clara entre os grupos.
+
+## PCA utilizando todas as replicatas
+
+Também foi realizada a PCA tomando como componentes os resultados obtidos em cada uma das replicatas dos pacientes, de forma independente.
+
+```{r}
+# Utilizando todas os dados disponíveis 
+#PCA em M1
+pca <- list()
+gPca <- list()
+gEv <- list()
+gCr <- list()
+ret<-trataTodos(m1)
+gPca[[1]] <- ret[[1]]
+pca[[1]] <- ret[[2]]
+
+#PCA em M2
+ret<-trataTodos(m2)
+gPca[[2]]<-ret[[1]]
+pca[[2]]<-ret[[2]]
+
+gEv[[1]] <- fviz_eig(pca[[1]], addlabels=TRUE)
+gEv[[2]] <- fviz_eig(pca[[2]], addlabels=TRUE)
+
+```
+
+### Participação das componentes na explicação da variância
+
+```{r , p2M1, fig.cap="\\label{fig:p2M1}Participação de cada componente na explicação da variância."}
+grid.arrange(grobs = gEv[1:2], ncol=2,top="Participação das componentes em M1 e M2")
+```
+
+### PCA das usando todas as replicatas em M1 e M2
+
+```{r , pca2M1, fig.cap="\\label{fig:pca2M1M2}Gráfico das duas principais componentes em M1."}
+
+gPca[[1]] +
+   geom_ellipse(aes(x0 = -2.5, y0 = -0.5, a = 7, b = 5, angle = 0), 
+                      color = 'green')
+```
+
+Aqui podemos notar que os resultados são similares quando usadas as médias, variando porém alguns dos pacientes que foram considerados outleirs.
+
+Porém, há uma maior variância no agrupamento base, indicando alguma inconsistência entre os valores das diferentes replicatas.
+  
+```{r , pca2M2, fig.cap="\\label{fig:pcaM1M2}Gráfico das duas principais componentes em M2."}
+gPca[[2]]
+```
+
+De forma semelhante, aqui também não há uma clusterização clara entre Controle e Intervenção.
+
+Resolvemos, assim realizar nova nálise dos dados excluindo aqueles pacientes que tiveram uma variância nos dados maior que os demais na PCA das médias.
+
+# Refazendo a análise excluindo outliers
+
+Foram excluidas as amostras amostras dos pacientes Ind2, Ind6, Ind9, Ind11, Ind13, Ind14, Ind16, Ind17, Ind22 e Ind23, consederados *outliers*. A seguir repetiu-se a análise feita anteriormente.
+
+## Área do centro de pressão (CoP)
+
+```{r}
+# Obter medidas das médias
+#excluindo amostras 'Ind6','Ind16','Ind9','Ind13','Ind11','Ind17','Ind2','Ind22','Ind14' e 'Ind23'
+excluir<-c('Ind6','Ind16','Ind9','Ind13','Ind11','Ind17','Ind2','Ind22','Ind14','Ind23')
+m1<-m1[!m1$id %in% excluir,]
+m2<-m2[!m2$id %in% excluir,]
+df_area <- obter_medias(m1, m2, meta_m1, meta_m2, "area_var")
+
+# Formato longo para o teste da MANOVA
+df_area_w <- df_area %>%
+  pivot_wider(names_from = trat, values_from = "media_area_var")
+
+# Modelo
+modelo <- manova(
+  cbind(
+    log(juntos),
+    log(semitandem), 
+    log(separados), 
+    log(tandem)
+  ) ~ grupo*momento, data = df_area_w)
+
+summary(modelo, test = "Wilks")
+```
+
+### Comparações
+
+```{r, areavar, fig.cap="\\label{fig:areavar}Variação da área do CoP. Cada ponto indica a média e as retas indicam o erro padrão."}
+df_plot <- df_area %>% 
+  group_by(momento, grupo, trat) %>% 
+  summarise(media = mean(media_area_var, na.rm = T), desvio = se(media_area_var)) %>% 
+  ungroup() %>% 
+  mutate(momento = factor(momento, levels = c("Pré", "Pós")))
+
+ggplot(df_plot) + 
+  geom_point(aes(x = trat, y = media, col = momento), 
+             position = position_dodge(width = 0.5)) +
+  geom_errorbar(aes(x = trat, ymin = media-desvio, ymax = media+desvio, col = momento), 
+                position = position_dodge(width = 0.5), width = 0.2) + 
+  scale_x_discrete(limits = c("juntos", "semitandem", "tandem", "separados"), 
+                   labels = c("Pés unidos", "Semitandem", "Tandem", "Pos. Estática")) + 
+  facet_wrap(~grupo) +
+  labs(x = "", y = "Área do CoP (mm²)", col = "") + 
+  theme_bw() + 
+  theme(legend.position = "bottom")
+
+# ggsave("output/figuras/biomecanica/area_cop.png", width = 7, height = 4, dpi = 300)
+# ggsave("output/figuras/biomecanica/area_cop.svg", width = 7, height = 4, dpi = 300)
+```
+
+## Deslocamento da oscilação total (cm)
+
+```{r}
+# Obter medidas das médias
+df_disp <- obter_medias(m1, m2, meta_m1, meta_m2, "disp")
+
+# Formato longo para o teste da MANOVA
+df_disp_w <- df_disp %>%
+  pivot_wider(names_from = trat, values_from = "media_disp")
+
+# Modelo
+modelo <- manova(
+  cbind(
+    log(juntos),
+    log(semitandem), 
+    log(separados), 
+    log(tandem)
+  ) ~ grupo*momento, data = df_disp_w)
+
+summary(modelo, test = "Wilks")
+```
+
+### Comparações
+
+```{r, disp, fig.cap="\\label{fig:disp}Deslocamento da ocilação total. Cada ponto indica a média e as retas indicam o erro padrão."}
+df_plot <- df_disp %>% 
+  group_by(momento, grupo, trat) %>% 
+  summarise(media = mean(media_disp, na.rm = T), desvio = se(media_disp)) %>% 
+  ungroup() %>% 
+  mutate(momento = factor(momento, levels = c("Pré", "Pós")))
+
+ggplot(df_plot) + 
+  geom_point(aes(x = trat, y = media, col = momento), 
+             position = position_dodge(width = 0.5)) +
+  geom_errorbar(aes(x = trat, ymin = media-desvio, ymax = media+desvio, col = momento), 
+                position = position_dodge(width = 0.5), width = 0.2) + 
+  scale_x_discrete(limits = c("juntos", "semitandem", "tandem", "separados"), 
+                   labels = c("Pés unidos", "Semitandem", "Tandem", "Pos. Estática")) + 
+  facet_wrap(~grupo) +
+  labs(x = "", y = "Deslocamento (cm)", col = "") + 
+  theme_bw() +
+  theme(legend.position = "bottom")
+
+# ggsave("output/figuras/biomecanica/deslocamento.png", width = 7, height = 4, dpi = 300)
+# ggsave("output/figuras/biomecanica/deslocamento.svg", width = 7, height = 4, dpi = 300)
+```
+
+## Amplitude medial-lateral (cm)
+
+```{r}
+# Obter medidas das médias
+df_ampl_ml <- obter_medias(m1, m2, meta_m1, meta_m2, "ampl_ml")
+
+# Formato longo para o teste da MANOVA
+df_ampl_ml_w <- df_ampl_ml %>%
+  pivot_wider(names_from = trat, values_from = "media_ampl_ml")
+
+# Modelo
+modelo <- manova(
+  cbind(
+    log(juntos),
+    log(semitandem), 
+    log(separados), 
+    log(tandem)
+  ) ~ grupo*momento, data = df_ampl_ml_w)
+
+summary(modelo, test = "Wilks")
+```
+
+### Comparações
+
+```{r, ampl_ml, fig.cap="\\label{fig:ampl_ml}Amplitude medial-lateral (cm). Cada ponto indica a média e as retas indicam o erro padrão."}
+df_plot <- df_ampl_ml %>% 
+  group_by(momento, grupo, trat) %>% 
+  summarise(media = mean(media_ampl_ml, na.rm = T), desvio = se(media_ampl_ml)) %>% 
+  ungroup() %>% 
+  mutate(momento = factor(momento, levels = c("Pré", "Pós")))
+
+ggplot(df_plot) + 
+  geom_point(aes(x = trat, y = media, col = momento), 
+             position = position_dodge(width = 0.5)) +
+  geom_errorbar(aes(x = trat, ymin = media-desvio, ymax = media+desvio, col = momento), 
+                position = position_dodge(width = 0.5), width = 0.2) + 
+  scale_x_discrete(limits = c("juntos", "semitandem", "tandem", "separados"), 
+                   labels = c("Pés unidos", "Semitandem", "Tandem", "Pos. Estática")) + 
+  facet_wrap(~grupo) +
+  labs(x = "", y = "Amplitude ML (cm)", col = "") + 
+  theme_bw() + 
+  theme(legend.position = "bottom")
+```
+
+## Amplitude ântero-posterior (cm)
+
+```{r}
+# Obter medidas das médias
+df_ampl_ap <- obter_medias(m1, m2, meta_m1, meta_m2, "ampl_ap")
+
+# Formato longo para o teste da MANOVA
+df_ampl_ap_w <- df_ampl_ap %>%
+  pivot_wider(names_from = trat, values_from = "media_ampl_ap")
+
+# Modelo
+modelo <- manova(
+  cbind(
+    log(juntos),
+    log(semitandem), 
+    log(separados), 
+    log(tandem)
+  ) ~ grupo*momento, data = df_ampl_ap_w)
+
+summary(modelo, test = "Wilks")
+```
+
+### Comparações
+
+```{r, ampl_ap, fig.cap="\\label{fig:ampl_ml}Amplitude ântero-posterior (cm). Cada ponto indica a média e as retas indicam o erro padrão."}
+df_plot <- df_ampl_ap %>% 
+  group_by(momento, grupo, trat) %>% 
+  summarise(media = mean(media_ampl_ap, na.rm = T), desvio = se(media_ampl_ap)) %>% 
+  ungroup() %>% 
+  mutate(momento = factor(momento, levels = c("Pré", "Pós")))
+
+ggplot(df_plot) + 
+  geom_point(aes(x = trat, y = media, col = momento), 
+             position = position_dodge(width = 0.5)) +
+  geom_errorbar(aes(x = trat, ymin = media-desvio, ymax = media+desvio, col = momento), 
+                position = position_dodge(width = 0.5), width = 0.2) + 
+  scale_x_discrete(limits = c("juntos", "semitandem", "tandem", "separados"), 
+                   labels = c("Pés unidos", "Semitandem", "Tandem", "Pos. Estática")) + 
+  facet_wrap(~grupo) +
+  labs(x = "", y = "Amplitude AP (cm)", col = "") + 
+  theme_bw() +
+  theme(legend.position = "bottom")
+
+# ggsave("output/figuras/biomecanica/amplitude_ap.png", width = 7, height = 4, dpi = 300)
+# ggsave("output/figuras/biomecanica/amplitude_ap.svg", width = 7, height = 4, dpi = 300)
+```
+
+## Velocidade média total (cm/s)
+
+```{r}
+# Obter medidas das médias
+df_vel_media_total <- obter_medias(m1, m2, meta_m1, meta_m2, "vel_media_total")
+
+# Formato longo para o teste da MANOVA
+df_vel_media_total_w <- df_vel_media_total %>%
+  pivot_wider(names_from = trat, values_from = "media_vel_media_total")
+
+# Modelo
+modelo <- manova(
+  cbind(
+    log(juntos),
+    log(semitandem), 
+    log(separados), 
+    log(tandem)
+  ) ~ grupo*momento, data = df_vel_media_total_w)
+
+summary(modelo, test = "Wilks")
+```
+
+### Comparações
+
+```{r, vel_media_total, fig.cap="\\label{fig:vel_media_total}Velocidade média total (cm/s). Cada ponto indica a média e as retas indicam o erro padrão."}
+df_plot <- df_vel_media_total %>% 
+  group_by(momento, grupo, trat) %>% 
+  summarise(media = mean(media_vel_media_total, na.rm = T), desvio = se(media_vel_media_total)) %>% 
+  ungroup() %>% 
+  mutate(momento = factor(momento, levels = c("Pré", "Pós")))
+
+ggplot(df_plot) + 
+  geom_point(aes(x = trat, y = media, col = momento), 
+             position = position_dodge(width = 0.5)) +
+  geom_errorbar(aes(x = trat, ymin = media-desvio, ymax = media+desvio, col = momento), 
+                position = position_dodge(width = 0.5), width = 0.2) + 
+  scale_x_discrete(limits = c("juntos", "semitandem", "tandem", "separados"), 
+                   labels = c("Pés unidos", "Semitandem", "Tandem", "Pos. Estática")) + 
+  facet_wrap(~grupo) +
+  labs(x = "", y = "Velocidade média total", col = "") + 
+  theme_bw() +
+  theme(legend.position = "bottom")
+```
+
+## Root mean square (RMS) medial-lateral 
+
+```{r}
+# Obter medidas das médias
+df_rms_ml <- obter_medias(m1, m2, meta_m1, meta_m2, "rms_ml")
+
+# Formato longo para o teste da MANOVA
+df_rms_ml_w <- df_rms_ml %>%
+  pivot_wider(names_from = trat, values_from = "media_rms_ml")
+
+# Modelo
+modelo <- manova(
+  cbind(
+    log(juntos),
+    log(semitandem), 
+    log(separados), 
+    log(tandem)
+  ) ~ grupo*momento, data = df_rms_ml_w)
+
+summary(modelo, test = "Wilks")
+```
+
+### Comparações
+
+```{r, rms_ml, fig.cap="\\label{fig:rms_ml}Root mean square (RMS) medial-lateral (cm/s). Cada ponto indica a média e as retas indicam o erro padrão."}
+df_plot <- df_rms_ml %>% 
+  group_by(momento, grupo, trat) %>% 
+  summarise(media = mean(media_rms_ml, na.rm = T), desvio = se(media_rms_ml)) %>% 
+  ungroup() %>% 
+  mutate(momento = factor(momento, levels = c("Pré", "Pós")))
+
+ggplot(df_plot) + 
+  geom_point(aes(x = trat, y = media, col = momento), 
+             position = position_dodge(width = 0.5)) +
+  geom_errorbar(aes(x = trat, ymin = media-desvio, ymax = media+desvio, col = momento), 
+                position = position_dodge(width = 0.5), width = 0.2) + 
+  scale_x_discrete(limits = c("juntos", "semitandem", "tandem", "separados"), 
+                   labels = c("Pés unidos", "Semitandem", "Tandem", "Pos. Estática")) + 
+  facet_wrap(~grupo) +
+  labs(x = "", y = "RMS ML", col = "") + 
+  theme_bw() +
+  theme(legend.position = "bottom")
+
+# ggsave("output/figuras/biomecanica/rms_ml.png", width = 7, height = 4, dpi = 300)
+# ggsave("output/figuras/biomecanica/rms_ml.svg", width = 7, height = 4, dpi = 300)
+```
+
+## Root mean square (RMS) ântero-posterior 
+
+```{r}
+# Obter medidas das médias
+df_rms_ap <- obter_medias(m1, m2, meta_m1, meta_m2, "rms_ap")
+
+# Formato longo para o teste da MANOVA
+df_rms_ap_w <- df_rms_ap %>%
+  pivot_wider(names_from = trat, values_from = "media_rms_ap")
+
+# Modelo
+modelo <- manova(
+  cbind(
+    log(juntos),
+    log(semitandem), 
+    log(separados), 
+    log(tandem)
+  ) ~ grupo*momento, data = df_rms_ap_w)
+
+summary(modelo, test = "Wilks")
+```
+
+### Comparações
+
+```{r, rms_ap, fig.cap="\\label{fig:rms_ap}Root mean square (RMS) ântero-posterior  (cm/s). Cada ponto indica a média e as retas indicam o erro padrão."}
+df_plot <- df_rms_ap %>% 
+  group_by(momento, grupo, trat) %>% 
+  summarise(media = mean(media_rms_ap, na.rm = T), desvio = se(media_rms_ap)) %>% 
+  ungroup() %>% 
+  mutate(momento = factor(momento, levels = c("Pré", "Pós")))
+
+ggplot(df_plot) + 
+  geom_point(aes(x = trat, y = media, col = momento), 
+             position = position_dodge(width = 0.5)) +
+  geom_errorbar(aes(x = trat, ymin = media-desvio, ymax = media+desvio, col = momento), 
+                position = position_dodge(width = 0.5), width = 0.2) + 
+  scale_x_discrete(limits = c("juntos", "semitandem", "tandem", "separados"), 
+                   labels = c("Pés unidos", "Semitandem", "Tandem", "Pos. Estática")) + 
+  facet_wrap(~grupo) +
+  labs(x = "", y = "RMS AP", col = "") + 
+  theme_bw() +
+  theme(legend.position = "bottom")
+
+# ggsave("output/figuras/biomecanica/rms_ap.png", width = 7, height = 4, dpi = 300)
+# ggsave("output/figuras/biomecanica/rms_ap.svg", width = 7, height = 4, dpi = 300)
+```
+
+# Resumo
+
+Mais uma vez, não foi observada significância estatística para a interação entre grupos e momentos de coleta dos dados para as variáveis consideradas. 
+
+De fato, foi constatada uma menor variação nos dados, indicando que as discrepâncias entre os grupos Controle e Intervenção M2 eram causadas, principalmente pelos outliers, sendo o resultado de ambos os grupos bastante similares.

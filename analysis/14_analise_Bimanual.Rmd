@@ -1,0 +1,946 @@
+---
+title: "Análise de dados: Bimanual"
+author: "Iara Souza e Clovis F Reis"
+date: "2022-08-12"
+output: workflowr::wflow_html
+editor_options:
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+
+# Calcular as métricas - DADOS ESTÁTICOS ----------------------------------
+rm(list = ls())
+if(!is.null(dev.list())) dev.off()
+knitr::opts_chunk$set(warning = FALSE, message = FALSE) 
+
+library(tidyverse)
+library(magrittr)
+library(stats)
+library(ggplot2)
+library(gridExtra)
+library(grid)
+library(lmtest)
+library(psd)
+
+source('./funcoes.R')
+theme_set(theme_bw())
+```
+# Descrição da análise
+
+O estudo toma como dados a leitura de uma plataforma de força sobre a qual o paciente levanta-se . Foram coletados dados de um grupo que sofreu a Intervenção e outro de Controle, em dois momentos  distintos: Pré-Intervenção (M1) e Pós-Intervenção (M2).
+
+Foram disponibilizados os arquivos de dados dos seguintes pacientes, com resultados em triplicata:
+
+```{r}
+
+# Obter Meta dados dos arquivos Bimanual ------------------------------------------------
+meta <- get_metaData('04Bimanual')
+tmp <- unique(meta[c('id','grupo','ind')])
+print(tmp[order(tmp$grupo,tmp$ind),])
+```
+
+# Obtenção dos dados
+```{r}
+map_df(1:nrow(meta), ~ {
+  df_f <- getData(
+    file_name = meta$path[.x], 
+    moment = meta$momento[.x], 
+    id = meta$id[.x], 
+    trat = meta$trat[.x],
+    rep = meta$rep[.x],
+    grupo = meta$grupo[.x],
+    probs     = c(0.1, 0.9)
+  )
+}) -> df_f
+```
+
+# Calculo das métricas
+
+Calculou-se os dados das métricas em função do tempo para cada paciente de ambos os momentos (M1 e M2). 
+
+Também foi calculado o tempo médio de todas as  leituras efetuadas. Foram considerados picos máximos de T2 somente valores abaixo deste valor médio. Isso foi necessário, porque algumas amostras apresentaram valores de leitura finais superiores ao pico T2.
+
+```{r}
+#acha o tempo médio dos gráficos. 
+tmp<- df_f[,c('tempo','id','fz')]%>%
+  group_by(id) %>%
+  summarise(tempo = mean(tempo), sd(tempo))
+meanTime <- mean(tmp$tempo) + sd(tmp$tempo)
+```
+
+# Separação em sub-grupos
+
+Os dados foram separados em 4 subgrupos, de acordo com o tratamento recebido (Controle e Intervenção) e momento de tomada de dados (M1 e M2).
+
+Durante o processo, também foi realizada a média das 3 replicatas do experimento, agrupados por paciente (Ind) e pelo tempo.
+
+```{r}
+#cria subgrupos
+tmp <- get_subgrupos(df_f)
+ctlM1 <- tmp[[1]]
+ctlM2 <- tmp[[2]]
+itvM1 <- tmp[[3]]
+itvM2 <- tmp[[4]]
+```
+
+Pacientes cujos arquivos de amostras não se encontravam presentes nos dois tempos foram excluídos da análise.
+
+Os dados foram tratados de forma que as linhas resultantes aparecessem suavizadas. 
+
+```{r}
+# Indivíduos que não possuem amostras nos dois momentos
+cat('Ctl em M1 mas não em M2:\n', unique(ctlM1$id[!ctlM1$id %in% unique(ctlM2$id)]),
+    '\nCtl em M2 mas não em M1:\n',unique(ctlM2$id[!ctlM2$id %in% unique(ctlM1$id)]),
+    '\nItv em M1 mas não em M2:\n',unique(itvM1$id[!itvM1$id %in% unique(itvM2$id)]),
+    '\nItv em M2 mas não em M1:\n',unique(itvM2$id[!itvM2$id %in% unique(itvM1$id)]))
+
+# Remove indivíduos que não possuem amostras nos dois momentos
+ctlM1 <- ctlM1[ctlM1$id %in% unique(ctlM1$id[ctlM1$id %in% unique(ctlM2$id)]),]
+ctlM2 <- ctlM2[ctlM2$id %in% unique(ctlM2$id[ctlM2$id %in% unique(ctlM1$id)]),]
+itvM1 <- itvM1[itvM1$id %in% unique(itvM1$id[itvM1$id %in% unique(itvM2$id)]),]
+itvM2 <- itvM2[itvM2$id %in% unique(itvM2$id[itvM2$id %in% unique(itvM1$id)]),]
+
+spar = 0.01
+#suaviza as linhas
+ctlM1$fzS<-smooth.spline(ctlM1$fz, spar = spar, df = 5)$y
+ctlM2$fzS<-smooth.spline(ctlM2$fz, spar = spar, df = 5)$y
+itvM1$fzS<-smooth.spline(itvM1$fz, spar = spar, df = 5)$y
+itvM2$fzS<-smooth.spline(itvM2$fz, spar = spar, df = 5)$y
+
+#cria coluna para normalização do sinal
+ctlM1$fzN<-0
+ctlM2$fzN<-0
+itvM1$fzN<-0
+itvM2$fzN<-0
+```
+# Encontrar o T2 do gráfico dos pacientes
+
+O momento em que o paciente levanta-se do assento é caracterizado por um pico no gráfico de força. Aqui foi realizada a detecção deste pico. 
+
+Também foram estimados os fatores de correção dos valores de força zero, assim como foi calculado o valor base para translação dos gráficos sobre o eixo do tempo, de forma que todos os picos T2 pudessem ser plotados com um mesmo valor para o eixo X.
+
+```{r}
+picos <- get_picos(ctlM1, ctlM2, itvM1, itvM2)
+# ajuste do eixo X
+corrX <- 0
+  #floor(mean(picos$T1[!is.na(picos$T1)]) + 2*sd(picos$T1[!is.na(picos$T1)]))
+cat('Correção do eixo dos X:\n Os T2 de todos pacientes serão alinhados no tempo', corrX,'s.')
+```
+
+Realizou-se a translação de cada gráfico de forma a posicionar os valores de força zero na ordenada correta.
+
+Também foram calculados valores normalizados entre -1 e 1 para os gráficos individuais do grupo Intervenção.
+
+
+Ao final do processo de detecção das fases do Bimanual, notou-se que, devido a heterogeinidade de formas do sinal, a rotina de deteção automática dos tempos limites não obteve sucesso em alguns casos, em especial para T4. Para solucionar o problema, realizou-se uma curadoria manual dos casos de falha.
+
+Tempos antes da curadoria:
+
+```{r}
+print(picos)
+#intervenção manual no ajuste dos Ts
+#write_csv(picos,'../data/picosB.csv')
+tmp <- ajusta_XY(picos,
+          picosFile = '../data/picosB.csv',
+          ctlM1, ctlM2, itvM1, itvM2)
+picos <- tmp[[1]]
+ctlM1 <- tmp[[2]]
+ctlM2 <- tmp[[3]]
+itvM1 <- tmp[[4]]
+itvM2 <- tmp[[5]]
+```
+
+Tempos após a curadoria:
+
+```{r}
+print(picos)
+```
+# Visualização dos dados
+
+## Normalização
+
+Como as amplitudes obtidas pela plataforma são dependentes do peso do paciente e da força por ele aplicada para levantar-se, optou-se por realizar uma normalização nos valores de intensidade de sinal obtido, a fim de facilitar a comparação visual dos resultados dos diversos pacientes. 
+
+Assim, os valores daquelas linhas  foram normalizados entre -1 e 1, mantendo-se a linha base do zero. Este procedimento possui o inconveniente de distorcer valores negativos, já que eles normalmente são de intensidade menor que os positivos. Isso, porém, não afetará a precisão da visualização, já que todos os dados serão normalizados da mesma forma.
+
+O valor inicial da aferição de sinal para cada paciente foi corrigido tomando-se a média da intencidade das 100 primeiras amostras, subtraindo-se esse valor de todo o conjunto.
+
+## Sumário 
+
+Transformando os dados fornecidos em gráficos, obtemos para o grupo controle:
+
+```{r, ctlM1M2, fig.cap="\\label{fig:ctlM1M2}Dados do grupo de controle em M1 e M2. A linha azul indica o tempo M1 e a vermelha M2. As linhas verticais ciano e magenta identificam os pontos T1, T2, T3 e T4 dos tempos M1 e M2, respectivamente."}
+#imprime gráficos controle antes e depois
+ind = 'Ind30'
+gCtl <- list()
+idxC = 0
+for(ind in unique(ctlM1$id)){
+  idxC = idxC+1
+  T11 <- picos$T1[picos$id == ind &
+                   picos$df == 'ctlM1']
+  T21 <- picos$T2[picos$id == ind &
+                   picos$df == 'ctlM1']
+  T31 <- picos$T3[picos$id == ind &
+                   picos$df == 'ctlM1']
+  T41 <- picos$T4[picos$id == ind &
+                   picos$df == 'ctlM1']
+  T12 <- picos$T1[picos$id == ind &
+                   picos$df == 'ctlM2']
+  T22 <- picos$T2[picos$id == ind &
+                   picos$df == 'ctlM2']
+  T32 <- picos$T3[picos$id == ind &
+                   picos$df == 'ctlM2']
+  T42 <- picos$T4[picos$id == ind &
+                   picos$df == 'ctlM2']
+  min <- min(picos$min[picos$id == ind &
+                   picos$df == 'ctlM1'],
+             picos$min[picos$id == ind &
+                         picos$df == 'ctlM2'])
+  gCtl[[idxC]] <- 
+    ggplot()+
+    # xlim(0,12.5)+
+    ylab("Intesidade")+
+    ggtitle(ind)+
+    geom_line(data = ctlM1[ctlM1$id == ind,],
+              aes(x=tempo, y= fzS),
+              color='blue')+
+    geom_line(data = ctlM2[ctlM2$id == ind,],
+              aes(x=tempo, y= fzS),
+              color='red')+
+  geom_vline(xintercept = T11, color='cyan4', linetype = "dotdash", size= 0.3)+
+  geom_vline(xintercept = T21, color='cyan4', linetype = "dotdash", size= 0.3)+
+  geom_vline(xintercept = T31, color='cyan4', linetype = "dotdash", size= 0.3)+
+  geom_vline(xintercept = T41, color='cyan4', linetype = "dotdash", size= 0.3)+
+  geom_vline(xintercept = T12, color='magenta', linetype = "dotdash", size= 0.3)+
+  geom_vline(xintercept = T22, color='magenta', linetype = "dotdash", size= 0.3)+
+  geom_vline(xintercept = T32, color='magenta', linetype = "dotdash", size= 0.3)+
+  geom_vline(xintercept = T42, color='magenta', linetype = "dotdash", size= 0.3)+
+  annotate('text',label = c('T1','T2','T3','T4'), 
+           x=c((T11+T12)/2,(T21+T22)/2,(T31+T32)/2,(T41+T42)/2),
+           y=c(rep(min,4)),
+           color='magenta')+
+    scale_x_continuous(breaks = seq(0, 12, by = 1),
+                       limits = c(0,12.5))
+  
+}
+idx=1
+while(idx <= length(gCtl)){
+  ini = idx
+  if(idx+3 > length(gCtl)){
+    fim = length(gCtl)
+  }else{
+    fim = idx+3
+  }
+  grid.arrange(grobs = gCtl[ini:fim], ncol=2,top="Controle em M1 e M2")
+  idx = idx+4
+}
+```
+
+E os seguintes gráficos para o grupo intervenção:
+
+```{r, itvM1M2, fig.cap="\\label{fig:itvM1M2}Dados do grupo de intervenção em M1 e M2. A linha azul indica o tempo M1 e a vermelha M2. As linhas verticais ciano e magenta identificam os pontos T1, T2, T3 e T4 dos tempos M1 e M2, respectivamente."}
+picos <- read_csv('../data/picosB.csv')
+
+#imprime gráficos intervenção antes e depois
+gItv <- list()
+idxI = 0
+for(ind in unique(itvM1$id)){
+  T11 <- picos$T1[picos$id == ind &
+                   picos$df == 'itvM1']
+  T21 <- picos$T2[picos$id == ind &
+                   picos$df == 'itvM1']
+  T31 <- picos$T3[picos$id == ind &
+                   picos$df == 'itvM1']
+  T41 <- picos$T4[picos$id == ind &
+                   picos$df == 'itvM1']
+  T12 <- picos$T1[picos$id == ind &
+                   picos$df == 'itvM2']
+  T22 <- picos$T2[picos$id == ind &
+                   picos$df == 'itvM2']
+  T32 <- picos$T3[picos$id == ind &
+                   picos$df == 'itvM2']
+  T42 <- picos$T4[picos$id == ind &
+                   picos$df == 'itvM2']
+  min <- min(picos$min[picos$id == ind &
+                   picos$df == 'itvM1'],
+             picos$min[picos$id == ind &
+                         picos$df == 'itvM2'])
+  
+  idxI = idxI+1
+  gItv[[idxI]] <- 
+    ggplot()+
+    # xlim(0,12.5)+
+    ylab("Intesidade")+
+    ggtitle(ind)+
+    geom_line(data = itvM1[itvM1$id == ind,],
+              aes(x=tempo, y= fzS),
+              color='blue')+
+    geom_line(data = itvM2[itvM2$id == ind,],
+              aes(x=tempo, y= fzS),
+              color='red')+
+  geom_vline(xintercept = T11, color='cyan4', linetype = "dotdash", size= 0.3)+
+  geom_vline(xintercept = T21, color='cyan4', linetype = "dotdash", size= 0.3)+
+  geom_vline(xintercept = T31, color='cyan4', linetype = "dotdash", size= 0.3)+
+  geom_vline(xintercept = T41, color='cyan4', linetype = "dotdash", size= 0.3)+
+  geom_vline(xintercept = T12, color='magenta', linetype = "dotdash", size= 0.3)+
+  geom_vline(xintercept = T22, color='magenta', linetype = "dotdash", size= 0.3)+
+  geom_vline(xintercept = T32, color='magenta', linetype = "dotdash", size= 0.3)+
+  geom_vline(xintercept = T42, color='magenta', linetype = "dotdash", size= 0.3)+
+  annotate('text',label = c('T1','T2','T3','T4'), 
+           x=c((T11+T12)/2,(T21+T22)/2,(T31+T32)/2,(T41+T42)/2),
+           y=c(rep(min,4)),
+           color='magenta')+
+    scale_x_continuous(breaks = seq(0, 12, by = 1),
+                       limits = c(0,12.5))
+  
+}
+idx=1
+while(idx <= length(gItv)){
+  ini = idx
+  if(idx+3 > length(gItv)){
+    fim = length(gItv)
+  }else{
+    fim = idx+3
+  }
+  grid.arrange(grobs = gItv[ini:fim], ncol=2,top="Intervenção em M1 e M2")
+  idx = idx+4
+}
+```
+
+## Linha de referência para controle
+Criou-se uma linha de referência para servir como parâmetro de comparação para o tratamento. Para tanto e visando obter um N amostral maior, tomou-se todos os experimentos realizados com o grupo de controle, tanto em M1, como em M2. 
+
+Calculou-se a média e o desvio do sinal padrão para cada unidade de tempo, independentemente de paciente ou replicata.
+
+A seguir, removeu-se todos os instantes de tempo onde existiam menos que 10 amostras, a fim de dar maior precisão e significância à linha base.
+
+Obteve-se assim 3 linhas base:
+
+* Linha da média de valores a cada instante de tempo;
+
+* Linha indicadora de média mais um desvio padrão; e
+
+* Linha indicadora de média menos um desvio padrão.
+
+Assim obteve-se o seguinte gráfico base para referência:
+
+```{r, ctlRfr, fig.cap="\\label{fig:ctlRfr}Dados do grupo de controle em M1 e M2. A linha cinza indica a posição da média em cada instante e a área cinza o desvio padrão."}
+#cria linha de referencia do controle.
+#usa todas as amostras de controle de M1 e M2
+
+#unindo os controles
+#ctl <- rbind(ctlM1,ctlM2)
+ctl <- ctlM1
+# Arredonda tempo para 3 digitos
+ctl$tempo <- round(ctl$tempo, digits = 3)
+ctl <- ctl %>%
+  group_by(tempo) %>%
+  summarise(fzM = mean(fzS), 
+            sd(fzS),
+            fzUp = mean(fzS) + sd(fzS),
+            fzDw = mean(fzS) - sd(fzS),
+            n = n())
+ctl$fzMN <-0
+ctl$fzUpN <-0
+ctl$fzDwN <-0
+
+#somente tempos que constam em mais de 10 amostras
+ctl<-ctl[ctl$n >= 10,]
+#normaliza entre 0 e 1
+min<-min(ctl$fzDw)
+max<-max(ctl$fzUp)
+ctl$fzMN[ctl$fzM>=0]<- ctl$fzM[ctl$fzM>=0]/max
+ctl$fzMN[ctl$fzM<0]<- -ctl$fzM[ctl$fzM<0]/min
+ctl$fzUpN[ctl$fzUp>=0]<- ctl$fzUp[ctl$fzUp>=0]/max
+ctl$fzUpN[ctl$fzUp<0]<- -ctl$fzUp[ctl$fzUp<0]/min
+ctl$fzDwN[ctl$fzDw>=0]<- ctl$fzDw[ctl$fzDw>=0]/max
+ctl$fzDwN[ctl$fzDw<0]<- -ctl$fzDw[ctl$fzDw<0]/min
+
+#calcula os Ts para o controle
+T1 <- mean(picos$T1[!is.na(picos$T1) &
+                      (picos$df == 'ctlM1' |
+                         picos$df == 'ctlM2')])
+T2 <- mean(picos$T2[!is.na(picos$T2) &
+                      (picos$df == 'ctlM1' |
+                         picos$df == 'ctlM2')])
+T3 <- mean(picos$T3[!is.na(picos$T3) &
+                      (picos$df == 'ctlM1' |
+                         picos$df == 'ctlM2')])
+T4 <- mean(picos$T4[!is.na(picos$T4) &
+                      (picos$df == 'ctlM1' |
+                         picos$df == 'ctlM2')])
+
+T1 <- 1.2
+T4 <- 9.315
+
+ggplot()+
+  xlim(0,12.5)+
+  ylab("Intesidade")+
+  ggtitle('Gráfico base de média e desvio padrão')+
+  geom_ribbon(data = ctl, 
+              aes(x=tempo,ymax=fzUpN,ymin=fzDwN ),
+              fill = alpha('grey',alpha = 0.35))+
+  geom_line(data = ctl, 
+            aes(x=tempo,y=fzMN), 
+            color = alpha('grey',alpha = 0.75))+
+  geom_vline(xintercept = T1, color='magenta', linetype = "dotdash", size= 0.3)+
+  geom_vline(xintercept = T2, color='magenta', linetype = "dotdash", size= 0.3)+
+  geom_vline(xintercept = T3, color='magenta', linetype = "dotdash", size= 0.3)+
+  geom_vline(xintercept = T4, color='magenta', linetype = "dotdash", size= 0.3)+
+  annotate('text',label = c('T1','T2','T3','T4'), 
+           x=c(T1+0.25,T2+0.25,T3+0.25,T4+0.25),
+           y=c(-1,-1,-1,-1),
+           color='magenta')
+```
+
+Os pontos T1, T2, T3 e T4 foram obtidos com base na variação do sinal do controle e foram utilizados como referência para todas as análises subsequentes
+
+Observe que os dados com valores negativos não aparecem com sua amplitude em verdadeira grandeza.
+
+# Resultados
+
+O procedimento descrito acima também foi realizado com o grupo intervenção em M1. 
+
+Quando confrontado com os dados de controle, obteve-se:
+
+```{r, itvM1Rfr, fig.cap="\\label{fig:itvM1Rfr}Comparação entre os dados do grupo de controle em  e o grupo intervenção em M2. A linha cinza indica a posição da média em cada instante e a área cinza o desvio padrão do controle.A linha azul indica a posição da média em cada instante e a área azul o desvio padrão do grupo intervenção em M1."}
+
+
+itv <- itvM1
+# Arredonda tempo para 3 digitos
+itv$tempo <- round(itv$tempo, digits = 3)
+itv <- itv %>%
+  group_by(tempo) %>%
+  summarise(fzM = mean(fzS), 
+            sd(fzS),
+            fzUp = mean(fzS) + 1*sd(fzS),
+            fzDw = mean(fzS) - 1*sd(fzS),
+            n = n())
+itv$fzMN <-0
+itv$fzUpN <-0
+itv$fzDwN <-0
+#somente tempos que constam em mais de 5 amostras
+itv<-itv[itv$n >= 5,]
+#normaliza entre 0 e 1
+min<-min(itv$fzDw)
+max<-max(itv$fzUp)
+itv$fzMN[itv$fzM>=0]<- itv$fzM[itv$fzM>=0]/max
+itv$fzMN[itv$fzM<0]<- -itv$fzM[itv$fzM<0]/min
+itv$fzUpN[itv$fzUp>=0]<- itv$fzUp[itv$fzUp>=0]/max
+itv$fzUpN[itv$fzUp<0]<- -itv$fzUp[itv$fzUp<0]/min
+itv$fzDwN[itv$fzDw>=0]<- itv$fzDw[itv$fzDw>=0]/max
+itv$fzDwN[itv$fzDw<0]<- -itv$fzDw[itv$fzDw<0]/min
+
+itv1 <- itv
+
+ggplot()+
+  xlim(0,12.5)+
+  ylab("Intesidade")+
+  ggtitle('Grupo Intervenção em M1')+
+  geom_ribbon(data = ctl, 
+              aes(x=tempo,ymax=fzUpN,ymin=fzDwN ),
+              fill = alpha('grey',alpha = 0.35))+
+  geom_line(data = ctl, 
+            aes(x=tempo,y=fzMN), 
+            color = alpha('grey',alpha = 0.75))+
+  geom_ribbon(data = itv1, 
+              aes(x=tempo,ymax=fzUpN,ymin=fzDwN ),
+              fill = alpha('blue',alpha = 0.15))+
+  geom_line(data = itv1, 
+            aes(x=tempo,y=fzMN), 
+            color = alpha('blue',alpha = 0.25))+
+  geom_vline(xintercept = T1, color='magenta', linetype = "dotdash", size= 0.3)+
+  geom_vline(xintercept = T2, color='magenta', linetype = "dotdash", size= 0.3)+
+  geom_vline(xintercept = T3, color='magenta', linetype = "dotdash", size= 0.3)+
+  geom_vline(xintercept = T4, color='magenta', linetype = "dotdash", size= 0.3)+
+  annotate('text',label = c('T1','T2','T3','T4'), 
+           x=c(T1+0.25,T2+0.25,T3+0.25,T4+0.25),
+           y=c(-1,-1,-1,-1),
+           color='magenta')
+
+```
+
+De forma semelhante, o procedimento foi realizado com o grupo intervenção em M2, sendo obtido o seguinte gráfico :
+
+```{r, itvM2Rfr, fig.cap="\\label{fig:itvM2Rfr}Comparação entre os dados do grupo de controle em  e o grupo intervenção em M2.  A linha cinza indica a posição da média em cada instante e a área cinza o desvio padrão do controle.A linha verde indica a posição da média em cada instante e a área verde o desvio padrão do grupo intervenção em M2."}
+
+itv <- itvM2
+# Arredonda tempo para 3 digitos
+itv$tempo <- round(itv$tempo, digits = 3)
+itv <- itv %>%
+  group_by(tempo) %>%
+  summarise(fzM = mean(fzS), 
+            sd(fzS),
+            fzUp = mean(fzS) + 1*sd(fzS),
+            fzDw = mean(fzS) - 1*sd(fzS),
+            n = n())
+itv$fzMN <-0
+itv$fzUpN <-0
+itv$fzDwN <-0
+
+#somente tempos que constam em mais de 5 amostras
+itv<-itv[itv$n >= 5,]
+#normaliza entre 0 e 1
+min<-min(itv$fzDw)
+max<-max(itv$fzUp)
+itv$fzMN[itv$fzM>=0]<- itv$fzM[itv$fzM>=0]/max
+itv$fzMN[itv$fzM<0]<- -itv$fzM[itv$fzM<0]/min
+itv$fzUpN[itv$fzUp>=0]<- itv$fzUp[itv$fzUp>=0]/max
+itv$fzUpN[itv$fzUp<0]<- -itv$fzUp[itv$fzUp<0]/min
+itv$fzDwN[itv$fzDw>=0]<- itv$fzDw[itv$fzDw>=0]/max
+itv$fzDwN[itv$fzDw<0]<- -itv$fzDw[itv$fzDw<0]/min
+
+itv2 <- itv
+
+ggplot()+
+  xlim(0,12.5)+
+  ylab("Intesidade")+
+  ggtitle('Grupo Intervenção em M2')+
+  geom_ribbon(data = ctl, 
+              aes(x=tempo,ymax=fzUpN,ymin=fzDwN ),
+              fill = alpha('grey',alpha = 0.35))+
+  geom_line(data = ctl, 
+            aes(x=tempo,y=fzMN), 
+            color = alpha('grey',alpha = 0.75))+
+  geom_ribbon(data = itv2, 
+              aes(x=tempo,ymax=fzUpN,ymin=fzDwN ),
+              fill = alpha('green',alpha = 0.25))+
+  geom_line(data = itv2, 
+            aes(x=tempo,y=fzMN), 
+            color = alpha('green',alpha = 0.35))+
+  geom_vline(xintercept = T1, color='magenta', linetype = "dotdash", size= 0.3)+
+  geom_vline(xintercept = T2, color='magenta', linetype = "dotdash", size= 0.3)+
+  geom_vline(xintercept = T3, color='magenta', linetype = "dotdash", size= 0.3)+
+  geom_vline(xintercept = T4, color='magenta', linetype = "dotdash", size= 0.3)+
+  annotate('text',label = c('T1','T2','T3','T4'), 
+           x=c(T1+0.25,T2+0.25,T3+0.25,T4+0.25),
+           y=c(-1,-1,-1,-1),
+           color='magenta')
+
+```
+
+Comparando-se os gráficos de M1 e M2:
+
+```{r, itvM1e2, fig.cap="\\label{fig:itvM1e3}Comparação entre os dados do grupo intervenção em M1 e M2.  A linha azul indica a posição da média em cada instante e a área azul o desvio padrão do grupo intervenção em M1. A linha verde indica a posição da média em cada instante e a área verde o desvio padrão do grupo intervenção em M2."}
+
+ggplot()+
+  xlim(0,12.5)+
+  ylab("Intesidade")+
+  ggtitle('Grupo Intervenção em M1 x M2')+
+  geom_ribbon(data = itv1, 
+              aes(x=tempo,ymax=fzUpN,ymin=fzDwN ),
+              fill = alpha('blue',alpha = 0.15))+
+  geom_line(data = itv1, 
+            aes(x=tempo,y=fzMN), 
+            color = alpha('blue',alpha = 0.35))+
+  geom_ribbon(data = itv2, 
+              aes(x=tempo,ymax=fzUpN,ymin=fzDwN ),
+              fill = alpha('green',alpha = 0.25))+
+  geom_line(data = itv2, 
+            aes(x=tempo,y=fzMN), 
+            color = alpha('green',alpha = 0.85))+
+  geom_vline(xintercept = T1, color='magenta', linetype = "dotdash", size= 0.3)+
+  geom_vline(xintercept = T2, color='magenta', linetype = "dotdash", size= 0.3)+
+  geom_vline(xintercept = T3, color='magenta', linetype = "dotdash", size= 0.3)+
+  geom_vline(xintercept = T4, color='magenta', linetype = "dotdash", size= 0.3)+
+  annotate('text',label = c('T1','T2','T3','T4'), 
+           x=c(T1+0.25,T2+0.25,T3+0.25,T4+0.25),
+           y=c(-1,-1,-1,-1),
+           color='magenta')
+```
+
+Nota-se que, em ambos os casos, os valores de controle e de intervenção parecem ser semelhantes, assim como parece não haver diferença entre os resultados obtidos antes e depois da intervenção.
+
+Analisando os gráficos de cada individuo:
+
+```{r, itvAllM1, fig.cap="\\label{fig:itvAllM1}Comparação entre os dados do grupo de controle em  e o grupo intervenção em M2.  A linha cinza indica a posição da média em cada instante e a área cinza o desvio padrão do controle. As linhas coloridas indicam os valores normalizados  de cada paciente do grupo intervenção em M1."}
+
+ggplot()+
+  xlim(0,12.5)+
+  ylab("Intesidade")+
+  ggtitle('Grupo Intervenção em M1')+
+  geom_ribbon(data = ctl, 
+              aes(x=tempo,ymax=fzUpN,ymin=fzDwN ),
+              fill = alpha('grey',alpha = 0.35))+
+  geom_line(data = ctl, 
+            aes(x=tempo,y=fzMN), 
+            color = alpha('grey',alpha = 0.75))+
+  geom_line(data = itvM1,
+            aes(x=tempo, y= fzN, color = as.factor(id), alpha = 0.4))+
+  guides(color=guide_legend(title="Pacientes"),
+         alpha="none")+
+  geom_vline(xintercept = T1, color='magenta', linetype = "dotdash", size= 0.3)+
+  geom_vline(xintercept = T2, color='magenta', linetype = "dotdash", size= 0.3)+
+  geom_vline(xintercept = T3, color='magenta', linetype = "dotdash", size= 0.3)+
+  geom_vline(xintercept = T4, color='magenta', linetype = "dotdash", size= 0.3)+
+  annotate('text',label = c('T1','T2','T3','T4'), 
+           x=c(T1+0.25,T2+0.25,T3+0.25,T4+0.25),
+           y=c(-1,-1,-1,-1),
+           color='magenta')
+
+
+```
+
+Nota-se que todos os gráficos possuem comportamento semelhante entre as linhas T1, T2 e T3. A maior variação ocorre durante a estabilização do paciente, entre T3 e T4. O mesmo acontece em M2. 
+
+É importante lembrar que as amplitudes, embora bastante heterogêneas, para esta análise possuem importância apenas para definir as diferentes fases do processo de levantar, já que estão intimamente ligadas ao peso do paciente.
+
+```{r, itvAllM2, fig.cap="\\label{fig:itvAllM2}Comparação entre os dados do grupo de controle em  e o grupo intervenção em M2.  A linha cinza indica a posição da média em cada instante e a área cinza o desvio padrão do controle. As linhas coloridas indicam os valores normalizados  de cada paciente do grupo intervenção em M2."}
+
+ggplot()+
+  xlim(0,12.5)+
+  ylab("Intesidade")+
+  ggtitle('Grupo Intervenção em M2')+
+  geom_ribbon(data = ctl, 
+              aes(x=tempo,ymax=fzUpN,ymin=fzDwN ),
+              fill = alpha('grey',alpha = 0.35))+
+  geom_line(data = ctl, 
+            aes(x=tempo,y=fzMN), 
+            color = alpha('grey',alpha = 0.75))+
+  geom_line(data = itvM2,
+            aes(x=tempo, y= fzN, color = as.factor(id), alpha = 0.4))+
+  guides(color=guide_legend(title="Pacientes"),
+         alpha="none")+
+  geom_vline(xintercept = T1, color='magenta', linetype = "dotdash", size= 0.3)+
+  geom_vline(xintercept = T2, color='magenta', linetype = "dotdash", size= 0.3)+
+  geom_vline(xintercept = T3, color='magenta', linetype = "dotdash", size= 0.3)+
+  geom_vline(xintercept = T4, color='magenta', linetype = "dotdash", size= 0.3)+
+  annotate('text',label = c('T1','T2','T3','T4'), 
+           x=c(T1+0.25,T2+0.25,T3+0.25,T4+0.25),
+           y=c(-1,-1,-1,-1),
+           color='magenta')
+
+```
+# Testes estatísticos
+A fim de testar se a diferença nos dados possuem significância estatística, realizou-se dois testes estatísticos sobre a linha de média das observações:
+
+* Teste de Causalidade de Granger; e
+
+* Teste de Correlação de de Spearman.
+
+## Teste Granger
+Nele verifica-se se duas séries temporais possuem causalidade, ou em outras palavras, se de posse de uma série temporal, é possível prever a segunda. A hipótese nula para este teste é que não há causalidade entre as séries temporais.
+
+Para realizá-lo tomou-se como base a linha da média dos controles, comparando-a com a linha da média do grupo intervenção nos momentos M1 e M2. Também confrontou-se as duas linhas de média de M1 e M2.
+
+```{r}
+grangertest(ctl$fzMN, itv1$fzMN, order = 3)
+grangertest(ctl$fzMN, itv2$fzMN, order = 3)
+grangertest(itv1$fzMN, itv2$fzMN, order = 3)
+```
+
+Quando comparando os resultados, notamos que o p-valor da comparação Controle x M2 extrapolou o *threshold* ligeiramente, alcançando 0.06807. Porém, nos demais cenários houve significância nos resultados, o que indica que devemos descartar a hipótese nula. Ou seja, de posse da linha média dos controles é possível prever o comportamento da linhas média de M1, mas não de M2. Porém com base em M1 é possível prever M2.
+
+Assim, parece não haver uma real significância nos resultados observados para  controle, intervenção em M1 e intervenção em M2, segundo o teste Granger.
+
+## Teste de Correlação de Spearman
+
+Este é um teste não paramétrico que verifica a dependência entre postos de variáveis. Assim ele analisa se existe uma covariância entre os valores de duas variáveis (v1 e v2), ou, em outras palavras, se os valores de dias variáveis aumentam ou diminuem simultaneamente.
+
+Para tanto é calculado um valor de ρ (rho) que pode variar entre -1 e 1. Valores proxímos a 1 indicam uma correlação direta entre variáveis, ou seja, quando v1 cresce, v2 também cresce. Valores próximos a -1 indicam uma correlação inversa, ou seja, quando v1 cresce, v2 diminue. Valores próximos a 0 indicam uma fraca correlação.
+
+A hipótese nula do teste é ρ = 0.
+
+```{r}
+# Prepara os dados para o teste de covariância
+#garante o comprimento igual nos 3 datasets
+tMax = 9
+tMin = 3
+
+dCtl<-ctl$fzM[ctl$tempo >=tMin & ctl$tempo<tMax]
+dM1<-itv1$fzM[itv1$tempo >=tMin & itv1$tempo<tMax]
+dM2<-itv2$fzM[itv2$tempo >=tMin & itv2$tempo<tMax]
+t<-ctl$tempo[ctl$tempo >=tMin & ctl$tempo<tMax]
+
+minY<-min(dCtl,dM1,dM2)
+
+data<- data.frame(tempo = t, int = dCtl, label = 'Ctl' )
+tmp <- data.frame(tempo = t, int = dM1, label = 'M1' )
+data <- rbind(data,tmp)
+tmp <- data.frame(tempo = t, int = dM2, label = 'M2' )
+data <- rbind(data,tmp)
+
+ggplot(data = data)+
+  ylab("Intesidade")+
+  ggtitle('Covariação das médias - sem normalização')+
+  geom_line(aes(x = tempo, y = int, colour = as.factor(label)))+
+  # geom_line(aes(t,d2),color='blue')+
+  # geom_line(aes(t,d3),color='green')+
+  geom_vline(xintercept = T1, color='magenta', linetype = "dotdash", size= 0.3)+
+  geom_vline(xintercept = T2, color='magenta', linetype = "dotdash", size= 0.3)+
+  geom_vline(xintercept = T3, color='magenta', linetype = "dotdash", size= 0.3)+
+  geom_vline(xintercept = T4, color='magenta', linetype = "dotdash", size= 0.3)+
+  annotate('text',label = c('T1','T2','T3','T4'), 
+           x=c(T1+0.25,T2+0.25,T3+0.25,T4+0.25),
+           y=c(rep(minY,4)),
+           color='magenta')+
+  scale_color_manual(values = c("Ctl" = "gray", "M1" = "blue", 'M2'= 'green'))+
+  guides(color=guide_legend(title="Grupos"))
+```
+
+Observando o gráfico das linhas de média não normalizado, notamos que há fortes indícios 
+de que a correlação entre os valores de controle, M1 e M2 são fortes. 
+
+```{r Covar}
+#Covariancia entre Controle e M1
+cor.test(dCtl,dM1,
+         method = "spearman",
+         continuity = FALSE,
+         conf.level = 0.98)
+
+#Covariancia entre Controle e M2
+cor.test(dCtl,dM2,
+         method = "spearman",
+         continuity = FALSE,
+         conf.level = 0.98)
+
+#Covariancia entre M1 e M2
+cor.test(dM1,dM2,
+         method = "spearman",
+         continuity = FALSE,
+         conf.level = 0.98)
+```
+
+Todos os testes indicaram um ρ > 0.73, confirmando assim a correlação entre os resultados obtidos pelo grupo de controle, M1 e M2.
+
+Desta forma, podemos afirmar que  também **não há diferença significativa** nos resultados observados para  controle, intervenção em M1 e intervenção em M2, segundo o teste Spearman.
+
+# Análise das diferentes fases do Levantar+Bimanual
+
+Para a análise das diferentes fases do levantar+Bimanual, foram utilizados os seguintes parâmetros : ÁreaCoP, Velocidade ântero-posterior, Velocidade médio-lateral, Amplitude de deslocamento do CoP ântero-posterior e Amplitude de deslocamento do CoP médio lateral (ML).
+
+```{r}
+#preparação dos dados
+
+tmp <- get_metrics(picos, ctlM1, ctlM2, itvM1, itvM2)
+metricAll <- tmp[[1]]
+metricFase <- tmp[[2]]
+
+#titulos para os subgráficos
+moment <- c('M1','M2')
+names(moment) <- c(1,2)
+
+fases <- c('T1 a T2','T2 a T3', 'T3 a T4')
+names(fases) <- c(1,2,3)
+  
+
+ggplot(metricAll)+
+  ggtitle('Comparativo de parâmetros entre momentos')+
+  geom_boxplot(aes(x = trat, y = valor, col = group)
+               # ,trim = F,draw_quantiles = c(0.25,0.5,0.75)
+               )+
+  labs(x = "", y = "Valores", col = "") + 
+  scale_x_discrete(limits = c("ampl_ap", "ampl_ml", "area_var", "vel_ap", "vel_ml"), 
+                   labels = c("Amplitude ap", "Amplitude ml", "Área CoP", "Velocidade ap", "Velocidade ml")) +
+  theme(legend.position = "right",
+        axis.text.x = element_text(angle = 25, hjust=1))+
+  facet_wrap(~moment, labeller = labeller(moment = moment))+
+  scale_color_discrete(name = 'Grupos', 
+                       labels = c('Ctl','Itv'))
+
+ggplot(metricFase,aes(x = trat, y = valor, col = group))+
+  #geom_boxplot()+
+  ggtitle('Comparativo de parâmetros entre fases')+
+  geom_boxplot2(width = 0.8, width.errorbar = 0.2)+
+  labs(x = "", y = "Valores", col = "") + 
+  scale_x_discrete(limits = c("ampl_ap", "ampl_ml", "area_var", "vel_ap", "vel_ml"), 
+                   labels = c("Amplitude ap", "Amplitude ml", "Área CoP", "Velocidade ap", "Velocidade ml")) +
+  theme(legend.position = "right",
+        axis.text.x = element_text(angle = 25, hjust=1))+
+  facet_grid(fase~moment, 
+             labeller = labeller(
+                            moment = moment,
+                            fase = fases), 
+                            scales = "free")+
+  scale_color_discrete(name = 'Grupos', 
+                       labels = c('Ctl','Itv'))
+
+
+```
+
+## Testes Estatísticos
+
+Foram comparadas as distribuições de resultados obtidas entre os grupos intervenção e controle tanto globalmente, quanto fase a fase para todos os parâmetros mencionados.
+
+Foram realizados os testes _**Two-sample t-test**_ e o _**Welch Two Sample t-test**_, comparando-se sempre as distribuições do grupo intervenção e respectivo controle nos momentos M1 e M2.
+
+Ambos os testes tem como hipótese nula que a média distribuição das duas categorias são iguais. A diferença entre eles é que o primeiro considera que as distribuições comparadas tem variâncias semelhantes e o segundo não.
+
+Conforme pode ser visto nos resultados dos testes, listados abaixo, **não houve diferença significantiva entre nenhuma das situações comparadas**. Assim, conclui-se que os grupos **intervenção e o controle** são similares considerados todos os parâmetros.
+
+### Parâmetros analisados globalmente
+
+#### Two-sample t-test
+
+```{r}
+#Realizando o Two-sample t-test para cada sub-grupo
+param = unique(metricAll$trat)
+for(momento in 1:2) {
+  for(trat in param){
+    tmp <- metricAll[metricAll$moment == momento &
+                       metricAll$trat == trat,
+                     c('group','valor')]
+    cat('##################################\n\n',paste0('M',momento),' Parâmetro:', trat,'\n')
+    print(t.test(valor ~ group, data=tmp,
+           var.equal=T,
+           conf.level=0.95))
+  }
+}
+```
+
+#### Welch Two Sample t-test
+
+```{r}
+#Realizando o Two-sample t-test para cada sub-grupo
+param = unique(metricAll$trat)
+for(momento in 1:2) {
+  for(trat in param){
+    tmp <- metricAll[metricAll$moment == momento &
+                       metricAll$trat == trat,
+                     c('group','valor')]
+    cat('##################################\n\n',paste0('M',momento),' Parâmetro:', trat,'\n')
+    print(t.test(valor ~ group, data=tmp,
+           var.equal=F,
+           conf.level=0.95))
+  }
+}
+```
+
+### Parâmetros analisados por fase do levantar+Bimanual
+
+#### Two-sample t-test
+
+```{r}
+for(momento in 1:2) {
+  for(trat in param){
+    for( fase in 1:3){
+      tmp <- metricFase[metricFase$moment == momento &
+                       metricFase$trat == trat &
+                         metricFase$fase == fase,
+                     c('group','valor')]
+      cat('##################################\n\n',
+          paste0('M',momento),' Parâmetro:', trat,
+          'Fase:', fase,'\n')
+      print(t.test(valor ~ group, data=tmp,
+           var.equal=T,
+           conf.level=0.95))
+    }
+  }
+}
+```
+
+#### Welch Two Sample t-test
+
+```{r}
+for(momento in 1:2) {
+  for(trat in param){
+    for( fase in 1:3){
+      tmp <- metricFase[metricFase$moment == momento &
+                       metricFase$trat == trat &
+                         metricFase$fase == fase,
+                     c('group','valor')]
+      cat('##################################\n\n',
+          paste0('M',momento),' Parâmetro:', trat,
+          'Fase:', fase,'\n')
+      print(t.test(valor ~ group, data=tmp,
+           var.equal=F,
+           conf.level=0.95))
+    }
+  }
+}
+```
+
+
+
+```{r, include=FALSE}
+
+# GTest(x=d2,
+#       p=expected,
+#       correct="none")
+# 
+# ks.test(d2,d3)
+# 
+# cor.test(itv1$fzMN, ctl$fzMN,
+#          method = "spearman",
+#          continuity = FALSE,
+#          conf.level = 0.99)
+# ks.test(itv2$fzMN, ctl$fzMN)
+# ks.test(itv1$fzMN, itv2$fzMN)
+# # 
+# # ks.test(itvM1$fzN[itvM1$id == 'Ind12'], ctl$fzMN,alternative = 'l')
+
+
+# ind='Ind28'
+# for(ind in unique(df_f$id[df_f$grupo == 'Controle'&
+#                 df_f$moment == '1'])){
+#   print(ggplot(data = df_f[df_f$id == ind &
+#                        df_f$grupo == 'Controle'&
+#                        df_f$moment == '1',
+#                      c('tempo','fz')])+
+#     ggtitle(ind)+
+#     geom_line(aes(x=tempo, y= fz,)))
+#   g
+# }
+# 
+# 
+# pspectrum(df_f$fz[df_f$id=='Ind3' & 
+#                             df_f$rep == '3' ],
+#           x.frqsamp =1000, plot = T)
+# 
+# 
+# save(df_f, file = "dff.RData")
+#   df_a <- calculate_area_cop(df_f)
+#   
+#   res <- data.frame(t(df_a), id = meta_m1$ind[.x], trat = meta_m1$trat[.x])
+#   res
+#   
+# }) -> m3
+# 
+# # Obter dados do Momento 2 ------------------------------------------------
+# 
+# # Caminho dos arquivos do momento 2
+# #path_m2 <- "dados/Dados da plataforma/Dados da plataforma M2/"
+# path_m2 <- "../data/M2"
+# 
+# # Lista de arquivos
+# M2 <- list.files(path_m2, recursive = T)
+# M2 <- M2[!grepl(".docx", M2)]
+# 
+# # Nomes dos arquivos
+# fn <- sapply(strsplit(M2, "\\/"), "[[", 3)
+# 
+# # Criar metadado com as informações dos indivíduos para o M2
+# meta_m2 <- data.frame(
+#   momento = 2, 
+#   grupo   = sapply(strsplit(M2, "\\/"), "[[", 1),
+#   ind     = sapply(strsplit(M2, "\\/"), "[[", 2),
+#   id      = paste0("Ind", as.integer(as.factor(sapply(strsplit(M2, "\\/"), "[[", 2)))),
+#   fn      = fn,
+#   path    = M2,
+#   trat    = tolower(sapply(strsplit(fn, "_"), "[[", 3))
+# )
+# 
+# # Remover os dados de Primiano Francisco, checar se estão corretos:
+# meta_m2 %<>% 
+#   filter(!ind == "Primiano Francisco")
+# 
+# # Calcular as métricas para cada paciente do momento 2
+# map_df(1:nrow(meta_m2), ~ {
+#   
+#   #print(paste(meta_m2$path[.x]))
+#   df_f <- filter_cop(
+#     file_name = paste0(path_m2, meta_m2$path[.x]),
+#     probs     = c(0.1, 0.9)
+#   )
+#   
+#   df_a <- calculate_area_cop(df_f)
+#   
+#   res <- data.frame(t(df_a), id = meta_m2$id[.x], trat = meta_m2$trat[.x])
+#   res
+#   
+# }) -> m2
+# 
+# # Salvar resultados
+# save(m1, meta_m1, m2, meta_m2, file = "output/biomecanica_processado.RData")
+```
