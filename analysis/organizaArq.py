@@ -50,4 +50,6 @@ for idx in range(0,len(arq)):
     #     next
         
     #ATENÇÃO:
-    #Ao término do processo é necessária uma reorganização manual do conteúdo dos diretórios criados, devido a falta de padrão encontada nos nomes dos arquivos de dados.
+    #  Ao término do processo é necessária uma reorganização manual
+    # do conteúdo dos diretórios criados, devido a falta de padrão
+    # encontada nos nomes dos arquivos de dados.
